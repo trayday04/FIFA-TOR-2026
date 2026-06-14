@@ -243,7 +243,7 @@ const STAGE_FILTERS=[
   {id:"sf", label:"Semi-finals"},
   {id:"final", label:"Final"},
 ];
-let state={ app:"matches", view:"list", query:"", evQuery:"", stage:"all", calMonth:5, calSel:null, pendingScrollToday:null, scrollToYmd:null };
+let state={ seg:"matches", view:"list", query:"", evQuery:"", stadiumQuery:"", stage:"all", calMonth:5, calSel:null, pendingScrollToday:null, scrollToYmd:null };
 
 /* ---------- Live scores (FIFA API) ---------- */
 const FIFA_MATCHES_URL = "https://api.fifa.com/api/v3/calendar/matches?count=500&idSeason=285023&language=en";
@@ -321,8 +321,9 @@ async function syncGoals(){
       if(await fetchGoalsForMatch(m)) changed = true;
     }));
     if(changed){
-      if(state.app === "matches") renderCurrent();
-      else if(state.app === "toronto") renderTorontoEvents();
+      if(state.view==="events") renderTorontoEvents();
+      else if(state.seg==="stadiums") renderStadiums();
+      else renderCurrent();
     }
   } finally {
     goalsSyncing = false;
@@ -337,8 +338,11 @@ async function fetchLiveScores(){
     if(!res.ok) return;
     const data = await res.json();
     const scoresChanged = applyLiveResults(data.Results);
-    if(scoresChanged && state.app === "matches") renderCurrent();
-    else if(scoresChanged && state.app === "toronto") renderTorontoEvents();
+    if(scoresChanged){
+      if(state.view === "events") renderTorontoEvents();
+      else if(state.seg === "stadiums") renderStadiums();
+      else renderCurrent();
+    }
     await syncGoals();
   } catch (_) { /* offline or blocked — keep bundled scores */ }
   finally { liveSyncing = false; }
@@ -380,6 +384,7 @@ const SEARCH_PLACEHOLDERS={
   list:"Search teams, groups, cities, stages\u2026",
   cal:"Search teams, groups, cities, stages\u2026",
   teams:"Search teams or groups\u2026",
+  events:"Search venues, events, neighbourhoods\u2026",
 };
 
 function matchSearchHay(m){
@@ -415,7 +420,7 @@ function filtered(){
 function updateSearchPlaceholder(){
   const ph=SEARCH_PLACEHOLDERS[state.view]||SEARCH_PLACEHOLDERS.list;
   const input=document.getElementById("searchInput");
-  if(input) input.placeholder=ph;
+  if(input && state.view!=="events") input.placeholder=ph;
 }
 
 /* ============================================================
@@ -833,7 +838,7 @@ function openEventDetail(evId){
 
 function renderTorontoEvents(){
   const catalog=getEventCatalog();
-  const view=document.getElementById("torontoMain");
+  const view=document.getElementById("eventsMain");
   const q=state.evQuery.trim().toLowerCase();
   let html="";
   TORONTO_EVENT_DAYS.forEach(day=>{
@@ -876,26 +881,105 @@ function renderTorontoEvents(){
   if(!html) html=emptyHTML("No events found","Try another venue or neighbourhood.");
   view.innerHTML=html;
   view.querySelectorAll(".ev-row[data-ev]").forEach(b=> b.onclick=()=>openEventDetail(b.dataset.ev));
-  if(state.pendingScrollToday==="toronto"){
+  if(state.pendingScrollToday==="events"){
     state.pendingScrollToday=null;
     scrollToTodaySection(view);
   }
 }
 
-function setApp(app){
-  state.app=app;
-  document.getElementById("appSeg").dataset.tab=app;
-  document.querySelectorAll("#appSeg button").forEach(b=>b.classList.toggle("active", b.dataset.app===app));
-  document.getElementById("matchesShell").classList.toggle("hidden", app!=="matches");
-  document.getElementById("torontoShell").classList.toggle("hidden", app!=="toronto");
-  if(app==="toronto"){
-    state.pendingScrollToday="toronto";
-    renderTorontoEvents();
+function stadiumList(){
+  return Object.keys(V).map(k=>({key:k,...V[k]})).sort((a,b)=>a.stadium.localeCompare(b.stadium));
+}
+
+function renderStadiums(){
+  const view=document.getElementById("stadiumsMain");
+  const q=state.stadiumQuery.trim().toLowerCase();
+  const list=stadiumList().filter(s=>{
+    if(!q) return true;
+    return [s.stadium,s.city,s.country,s.key].join(" ").toLowerCase().includes(q);
+  });
+  if(!list.length){
+    view.innerHTML=emptyHTML("No stadiums found","Try another name or city.");
+    return;
+  }
+  let html=`<div class="section-label">${list.length} host stadium${list.length>1?"s":""}</div>`;
+  list.forEach(s=>{
+    const count=MATCHES.filter(m=>m.venue===s.key).length;
+    const played=MATCHES.filter(m=>m.venue===s.key && m.finished).length;
+    html+=`<button type="button" class="stadium-card" data-venue="${s.key}">
+      <div class="thumb"><img src="${s.img}" alt="" loading="lazy" /></div>
+      <div class="info">
+        <div class="name">${s.stadium}</div>
+        <div class="loc">${s.city} &middot; ${s.country}</div>
+        <div class="meta">${count} match${count>1?"es":""}${played?` \u00b7 ${played} played`:""}</div>
+      </div>
+      <span class="chev" aria-hidden="true">\u203a</span>
+    </button>`;
+  });
+  view.innerHTML=html;
+  view.querySelectorAll(".stadium-card").forEach(b=> b.onclick=()=>openStadium(b.dataset.venue));
+}
+
+function openStadium(key){
+  const v=V[key]; if(!v) return;
+  const games=MATCHES.filter(m=>m.venue===key).sort((a,b)=>a.dateObj-b.dateObj || a.no-b.no);
+  const played=games.filter(m=>m.finished).length;
+  const rows=games.map(m=>matchCardHTML(m)).join("");
+  const html=`
+    ${venueHero(v.img, v.stadium+" \u00b7 "+v.city)}
+    <div class="sh-title" style="font-size:20px;margin-bottom:4px">${v.stadium}</div>
+    <div style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:16px">${v.city}, ${v.country}</div>
+    <div class="sh-info" style="margin-bottom:16px">
+      <div class="sh-row">${ICON_PIN}<div><div class="l">Host city</div><div class="v">${v.city}</div></div></div>
+      <div class="sh-row">${ICON_FLAG}<div><div class="l">Country</div><div class="v">${v.country}</div></div></div>
+      <div class="sh-row">${ICON_TROPHY}<div><div class="l">Matches</div><div class="v">${games.length} scheduled${played?` \u00b7 ${played} completed`:""}</div></div></div>
+      <div class="sh-row">${ICON_MAP}<div><div class="l">Directions</div><div class="v"><a class="sh-link" href="${mapsDirUrl({address:v.city+" "+v.stadium})}" target="_blank" rel="noopener">Open in Google Maps</a></div></div></div>
+    </div>
+    <div class="sh-section">All matches at this stadium</div>
+    <div class="sh-matches">${rows||emptyHTML("No matches","Schedule TBD.")}</div>`;
+  openSheet(html);
+  bindCards(sheet.querySelector(".sh-matches")||sheet);
+}
+
+function resetEventsHeader(){
+  const topbar=document.getElementById("mainTopbar");
+  topbar.classList.remove("header-collapsed");
+  document.body.classList.remove("header-collapsed");
+}
+
+function updateShellVisibility(){
+  const onEvents=state.view==="events";
+  const onStadiums=state.seg==="stadiums" && !onEvents;
+  const onMatches=!onEvents && !onStadiums;
+  document.getElementById("matchesShell").classList.toggle("hidden", !onMatches);
+  document.getElementById("stadiumsShell").classList.toggle("hidden", !onStadiums);
+  document.getElementById("eventsShell").classList.toggle("hidden", !onEvents);
+  document.getElementById("segWrap").classList.toggle("hidden", onEvents);
+  document.body.classList.toggle("on-events", onEvents);
+  if(!onEvents) resetEventsHeader();
+}
+
+function setSeg(seg){
+  state.seg=seg;
+  document.getElementById("appSeg").dataset.tab=seg;
+  document.querySelectorAll("#appSeg button").forEach(b=>b.classList.toggle("active", b.dataset.seg===seg));
+  if(state.view==="events"){
+    state.view="list";
+    document.querySelectorAll("#bottomNav button").forEach(b=>b.classList.toggle("active", b.dataset.view==="list"));
+    document.querySelectorAll(".view").forEach(s=>s.classList.remove("active"));
+    document.getElementById("view-list").classList.add("active");
+  }
+  if(seg==="stadiums"){
+    updateShellVisibility();
+    renderStadiums();
+    window.scrollTo({top:0});
   } else {
-    if(state.view==="list") state.pendingScrollToday="list";
+    updateShellVisibility();
+    document.getElementById("chips").style.display = state.view==="teams" ? "none" : "flex";
+    if(state.view==="list" && !state.scrollToYmd) state.pendingScrollToday="list";
     else if(state.view==="cal") syncCalendarToToday(true);
-    else window.scrollTo({top:0});
     renderCurrent();
+    if(state.view!=="list" || state.scrollToYmd) window.scrollTo({top:0});
   }
 }
 
@@ -916,16 +1000,31 @@ function renderCurrent(){
 
 function setView(v){
   state.view=v;
-  document.querySelectorAll(".view").forEach(s=>s.classList.remove("active"));
-  document.getElementById("view-"+v).classList.add("active");
+  if(v==="events"){
+    resetEventsHeader();
+    state.seg="matches";
+    document.getElementById("appSeg").dataset.tab="matches";
+    document.querySelectorAll("#appSeg button").forEach(b=>b.classList.toggle("active", b.dataset.seg==="matches"));
+    state.pendingScrollToday="events";
+    updateShellVisibility();
+    renderTorontoEvents();
+    window.scrollTo({top:0});
+  } else {
+    state.seg="matches";
+    document.getElementById("appSeg").dataset.tab="matches";
+    document.querySelectorAll("#appSeg button").forEach(b=>b.classList.toggle("active", b.dataset.seg==="matches"));
+    document.querySelectorAll(".view").forEach(s=>s.classList.remove("active"));
+    document.getElementById("view-"+v).classList.add("active");
+    document.getElementById("chips").style.display = v==="teams" ? "none" : "flex";
+    updateSearchPlaceholder();
+    updateShellVisibility();
+    if(v==="list"){
+      if(!state.scrollToYmd) state.pendingScrollToday="list";
+    } else if(v==="cal") syncCalendarToToday(true);
+    else window.scrollTo({top:0});
+    renderCurrent();
+  }
   document.querySelectorAll("#bottomNav button").forEach(b=>b.classList.toggle("active", b.dataset.view===v));
-  document.getElementById("chips").style.display = v==="teams" ? "none" : "flex";
-  updateSearchPlaceholder();
-  if(v==="list"){
-    if(!state.scrollToYmd) state.pendingScrollToday="list";
-  } else if(v==="cal") syncCalendarToToday(true);
-  else window.scrollTo({top:0});
-  renderCurrent();
 }
 
 document.querySelectorAll("#bottomNav button").forEach(b=> b.onclick=()=>setView(b.dataset.view));
@@ -951,7 +1050,32 @@ evSearchInput.addEventListener("input", ()=>{
 });
 evSearchClear.addEventListener("click",(e)=>{ e.preventDefault(); evSearchInput.value=""; state.evQuery=""; evSearchBox.classList.remove("has-value"); renderTorontoEvents(); });
 
-document.querySelectorAll("#appSeg button").forEach(b=> b.onclick=()=>setApp(b.dataset.app));
+document.querySelectorAll("#appSeg button").forEach(b=> b.onclick=()=>setSeg(b.dataset.seg));
+
+window.addEventListener("scroll", ()=>{
+  if(state.view!=="events") return;
+  const collapsed=window.scrollY>32;
+  document.getElementById("mainTopbar").classList.toggle("header-collapsed", collapsed);
+  document.body.classList.toggle("header-collapsed", collapsed);
+}, {passive:true});
+
+const stadiumSearchInput=document.getElementById("stadiumSearchInput");
+const stadiumSearchBox=document.getElementById("stadiumSearchBox");
+const stadiumSearchClear=document.getElementById("stadiumSearchClear");
+if(stadiumSearchInput){
+  stadiumSearchInput.addEventListener("input", ()=>{
+    state.stadiumQuery=stadiumSearchInput.value;
+    stadiumSearchBox.classList.toggle("has-value", !!stadiumSearchInput.value);
+    renderStadiums();
+  });
+  stadiumSearchClear.addEventListener("click",(e)=>{
+    e.preventDefault();
+    stadiumSearchInput.value="";
+    state.stadiumQuery="";
+    stadiumSearchBox.classList.remove("has-value");
+    renderStadiums();
+  });
+}
 
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSheet(); });
 
@@ -961,6 +1085,7 @@ document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSheet(); });
     syncCalendarToToday(true);
     renderChips();
     updateSearchPlaceholder();
+    updateShellVisibility();
     state.pendingScrollToday="list";
     setView("list");
     startLiveSync();

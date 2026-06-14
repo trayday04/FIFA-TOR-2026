@@ -64,7 +64,7 @@ def build_github_pages():
 
     (DOCS / "README.txt").write_text(
         "This folder is published by GitHub Pages.\n"
-        "Live URL: https://trayday04.github.io/FIFA-TO-2026/\n"
+        "Live URL: https://trayday04.github.io/FIFA-TOR-2026/\n"
         "Rebuild: python3 build.py\n",
         encoding="utf-8",
     )

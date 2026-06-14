@@ -6,7 +6,7 @@ Mobile web app for the FIFA World Cup 2026™ schedule, live scores, team squads
 
 After GitHub Pages is enabled, the app is available at:
 
-**https://trayday04.github.io/FIFA-TO-2026/**
+**https://trayday04.github.io/FIFA-TOR-2026/**
 
 Works on desktop and mobile in Chrome, Safari, or Edge. Requires internet for live scores, goal scorers, and player photos.
 
