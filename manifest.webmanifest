@@ -1,0 +1,19 @@
+{
+  "name": "FIFA World Cup 26",
+  "short_name": "WC26",
+  "description": "Matches, calendar, teams, and Toronto fan events with live scores",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "assets/fwc26-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
