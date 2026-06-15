@@ -48,11 +48,6 @@
   --glass-blur: blur(24px) saturate(180%);
   --sticky-search-top: 0px;
   --header-h: 120px;
-  --header-collapse: 0;
-  --header-reveal: 1;
-  --topbar-expanded-h: 118px;
-  --brand-row-h: 48px;
-  --seg-row-h: 48px;
 }
 
 .glass-panel {
@@ -120,21 +115,6 @@ input { font-family: inherit; }
   max-height: 80px;
   overflow: hidden;
 }
-.topbar.header-collapsed {
-  padding-bottom: 4px;
-}
-body:not(.on-matches) .topbar.header-collapsed .brandrow {
-  opacity: 0;
-  max-height: 0;
-  margin: 0;
-  pointer-events: none;
-}
-body:not(.on-matches) .topbar.header-collapsed .segwrap {
-  opacity: 0;
-  max-height: 0;
-  padding-top: 0;
-  pointer-events: none;
-}
 .segwrap.hidden { display: none; }
 
 /* Shared sticky header stack */
@@ -197,32 +177,6 @@ body.view-events #mainTopbar {
 .matches-head > .topbar .search { margin-top: 0; }
 .matches-head > .match-segwrap { padding: 8px 16px 10px; }
 
-/* Matches page: scroll-linked collapse */
-body.on-matches #mainTopbar {
-  overflow: hidden;
-  padding-top: calc((var(--safe-top) + 12px) * var(--header-reveal, 1));
-  padding-bottom: calc(12px * var(--header-reveal, 1));
-  border-bottom-color: rgba(255, 255, 255, calc(0.08 * var(--header-reveal, 1)));
-  box-shadow: 0 calc(4px * var(--header-reveal, 1)) calc(24px * var(--header-reveal, 1)) rgba(0, 0, 0, calc(0.35 * var(--header-reveal, 1)));
-}
-body.on-matches #mainTopbar .brandrow {
-  opacity: var(--header-reveal, 1);
-  transform: translate3d(0, calc(-8px * var(--header-collapse, 0)), 0);
-  max-height: calc(var(--brand-row-h) * var(--header-reveal, 1));
-  margin-bottom: calc(4px * var(--header-reveal, 1));
-}
-body.on-matches .matches-head {
-  top: calc(var(--topbar-expanded-h) * var(--header-reveal, 1));
-  padding-top: calc((var(--safe-top) + 8px) * var(--header-collapse, 0));
-}
-body.on-matches.header-collapsed .matches-head {
-  z-index: 41;
-}
-body.on-matches.header-collapsed #mainTopbar .brandrow { pointer-events: none; }
-body.on-matches .matches-head > .topbar {
-  padding-top: calc(8px * (1 - var(--header-collapse, 0)));
-}
-
 #stadiumsShell > .topbar,
 #eventsShell > .topbar {
   position: sticky;
@@ -248,10 +202,31 @@ body.on-matches .matches-head > .topbar {
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
 }
 .crest img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.brandtext { display: flex; flex-direction: column; line-height: 1; }
-.brandtext .k { font-family: "FWC26", sans-serif; font-size: 20px; letter-spacing: 0.02em; }
-.brandtext .s { font-size: 10.5px; color: var(--muted); letter-spacing: 0.18em; text-transform: uppercase; margin-top: 3px; }
+.brandtext { display: flex; flex-direction: column; line-height: 1; min-width: 0; }
+.brandtext .k {
+  display: flex; align-items: baseline; gap: 10px;
+  font-family: "FWC26", sans-serif; font-size: 20px; letter-spacing: 0.02em;
+}
 .brandtext .k em { color: var(--volt); font-style: normal; }
+.brand-context {
+  display: none;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--muted);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.brand-context::before {
+  content: "|";
+  margin: 0 10px;
+  color: var(--faint);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+body.view-events .brand-context { display: inline; }
+.brandtext .s { font-size: 10.5px; color: var(--muted); letter-spacing: 0.18em; text-transform: uppercase; margin-top: 3px; }
 
 .search {
   margin-top: 14px;
@@ -439,6 +414,7 @@ body.on-matches .matches-head > .topbar {
 .tcard .grp { font-size: 11px; color: var(--muted); margin-top: 3px; }
 .tcard .grp b { color: var(--volt); }
 .section-label { font-family: "FWC26", sans-serif; font-size: 16px; color: var(--muted); padding: 18px 2px 6px; }
+#stadiumsMain .section-label { color: var(--volt); }
 
 /* ===== Bottom nav ===== */
 .nav {
@@ -689,7 +665,10 @@ body.on-matches .matches-head > .topbar {
     <div class="brandrow">
       <div class="crest"><img src="assets/fwc26-logo.png" alt="FIFA World Cup 26" width="38" height="38" /></div>
       <div class="brandtext">
-        <div class="k">WORLD CUP <em>26</em></div>
+        <div class="k">
+          <span>WORLD CUP <em>26</em></span>
+          <span class="brand-context">Toronto <em>Events</em></span>
+        </div>
         <div class="s">Canada &middot; Mexico &middot; USA</div>
       </div>
     </div>

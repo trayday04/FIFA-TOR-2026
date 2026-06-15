@@ -55,6 +55,12 @@ const V = {
   SEA:{city:"Seattle",       stadium:"Lumen Field",               country:"USA",     off:-3, img:"assets/venues/SEA.jpg"},
 };
 
+const STADIUM_COUNTRY_GROUPS = [
+  { country: "Canada", label: "Canada" },
+  { country: "Mexico", label: "Mexico" },
+  { country: "USA", label: "United States" },
+];
+
 const VENUE_IMAGES={
   fanfest:"assets/venues/fanfest.jpg",
   harbourfront:"assets/venues/harbourfront.jpg",
@@ -101,22 +107,14 @@ function syncCalendarToToday(selectDay){
 }
 
 function stickyHeaderHeight(){
-  const onMatches=document.body.classList.contains("on-matches");
-  const head=matchesHeadEl();
-  const matchesVisible=head && !document.getElementById("matchesShell").classList.contains("hidden");
-
-  if(onMatches && matchesVisible && head){
-    const collapse=headerCollapseProgress();
-    const topH=Math.ceil(topbarExpandedH*Math.max(0, 1-collapse));
-    return topH+head.getBoundingClientRect().height;
-  }
-
   const v=getComputedStyle(document.documentElement).getPropertyValue("--header-h").trim();
   if(v.endsWith("px")) return parseFloat(v);
 
   let h=0;
   const topbar=document.getElementById("mainTopbar");
   if(topbar) h+=topbar.offsetHeight;
+  const head=matchesHeadEl();
+  const matchesVisible=head && !document.getElementById("matchesShell").classList.contains("hidden");
   if(matchesVisible && head) h+=head.offsetHeight;
   else {
     const searchBar=activeSearchBar();
@@ -903,30 +901,40 @@ function stadiumList(){
   return Object.keys(V).map(k=>({key:k,...V[k]})).sort((a,b)=>a.stadium.localeCompare(b.stadium));
 }
 
+function stadiumMatchesQuery(s, q){
+  if(!q) return true;
+  const haystack=[s.stadium, s.city, s.country, s.key, s.country==="USA"?"United States":""].join(" ").toLowerCase();
+  return haystack.includes(q);
+}
+
+function renderStadiumCard(s){
+  const count=MATCHES.filter(m=>m.venue===s.key).length;
+  const played=MATCHES.filter(m=>m.venue===s.key && m.finished).length;
+  return `<button type="button" class="stadium-card" data-venue="${s.key}">
+    <div class="thumb"><img src="${s.img}" alt="" loading="lazy" /></div>
+    <div class="info">
+      <div class="name">${s.stadium}</div>
+      <div class="loc">${s.city}</div>
+      <div class="meta">${count} match${count>1?"es":""}${played?` \u00b7 ${played} played`:""}</div>
+    </div>
+    <span class="chev" aria-hidden="true">\u203a</span>
+  </button>`;
+}
+
 function renderStadiums(){
   const view=document.getElementById("stadiumsMain");
   const q=state.stadiumQuery.trim().toLowerCase();
-  const list=stadiumList().filter(s=>{
-    if(!q) return true;
-    return [s.stadium,s.city,s.country,s.key].join(" ").toLowerCase().includes(q);
-  });
-  if(!list.length){
+  const filtered=stadiumList().filter(s=> stadiumMatchesQuery(s, q));
+  if(!filtered.length){
     view.innerHTML=emptyHTML("No stadiums found","Try another name or city.");
     return;
   }
-  let html=`<div class="section-label">${list.length} host stadium${list.length>1?"s":""}</div>`;
-  list.forEach(s=>{
-    const count=MATCHES.filter(m=>m.venue===s.key).length;
-    const played=MATCHES.filter(m=>m.venue===s.key && m.finished).length;
-    html+=`<button type="button" class="stadium-card" data-venue="${s.key}">
-      <div class="thumb"><img src="${s.img}" alt="" loading="lazy" /></div>
-      <div class="info">
-        <div class="name">${s.stadium}</div>
-        <div class="loc">${s.city} &middot; ${s.country}</div>
-        <div class="meta">${count} match${count>1?"es":""}${played?` \u00b7 ${played} played`:""}</div>
-      </div>
-      <span class="chev" aria-hidden="true">\u203a</span>
-    </button>`;
+  let html="";
+  STADIUM_COUNTRY_GROUPS.forEach(({country, label})=>{
+    const list=filtered.filter(s=>s.country===country).sort((a,b)=>a.city.localeCompare(b.city));
+    if(!list.length) return;
+    html+=`<div class="section-label">${label}</div>`;
+    list.forEach(s=>{ html+=renderStadiumCard(s); });
   });
   view.innerHTML=html;
   view.querySelectorAll(".stadium-card").forEach(b=> b.onclick=()=>openStadium(b.dataset.venue));
@@ -961,62 +969,23 @@ function activeSearchBar(){
   return document.querySelector("#matchesShell:not(.hidden) .matches-head > .topbar, #teamsShell:not(.hidden) .matches-head > .topbar, #stadiumsShell:not(.hidden) > .topbar, #eventsShell:not(.hidden) > .topbar");
 }
 
-let topbarExpandedH=118;
-let collapseRaf=0;
-
-function headerCollapseProgress(){
-  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-collapse"))||0;
-}
-
-function measureTopbarExpanded(){
-  const topbar=document.getElementById("mainTopbar");
-  if(!topbar||!document.body.classList.contains("on-matches")) return topbarExpandedH;
-  const root=document.documentElement;
-  root.style.setProperty("--header-collapse", "0");
-  root.style.setProperty("--header-reveal", "1");
-  topbar.classList.remove("header-collapsed");
-  document.body.classList.remove("header-collapsed");
-  void topbar.offsetHeight;
-  const brand=topbar.querySelector(".brandrow");
-  const brandH=brand?brand.offsetHeight:0;
-  topbarExpandedH=Math.max(96, Math.ceil(topbar.getBoundingClientRect().height));
-  root.style.setProperty("--topbar-expanded-h", topbarExpandedH+"px");
-  root.style.setProperty("--brand-row-h", Math.ceil(brandH)+"px");
-  applyHeaderCollapse();
-  return topbarExpandedH;
-}
-
 function syncStickyOffsets(){
   const topbar=document.getElementById("mainTopbar");
   const head=matchesHeadEl();
-  const onMatches=document.body.classList.contains("on-matches");
-  const matchesVisible=head && !document.getElementById("matchesShell").classList.contains("hidden");
   const root=document.documentElement;
-
-  if(onMatches&&head){
-    const expanded=topbarExpandedH||measureTopbarExpanded();
-    const collapse=headerCollapseProgress();
-    const reveal=Math.max(0, 1-collapse);
-    const topH=Math.ceil(expanded*reveal);
-    const headH=Math.ceil(head.getBoundingClientRect().height);
-    root.style.setProperty("--sticky-search-top", topH+"px");
-    root.style.setProperty("--header-h", (topH+headH)+"px");
-    return;
-  }
-
   if(!topbar) return;
+
   const topH=Math.ceil(topbar.getBoundingClientRect().height);
   root.style.setProperty("--sticky-search-top", topH+"px");
 
+  const matchesVisible=head && !document.getElementById("matchesShell").classList.contains("hidden");
   if(matchesVisible&&head){
-    const total=topH+Math.ceil(head.getBoundingClientRect().height);
-    root.style.setProperty("--header-h", total+"px");
+    root.style.setProperty("--header-h", (topH+Math.ceil(head.getBoundingClientRect().height))+"px");
     return;
   }
 
   const searchBar=activeSearchBar();
-  const total=topH+(searchBar?Math.ceil(searchBar.getBoundingClientRect().height):0);
-  root.style.setProperty("--header-h", total+"px");
+  root.style.setProperty("--header-h", (topH+(searchBar?Math.ceil(searchBar.getBoundingClientRect().height):0))+"px");
 }
 
 function initStickyHeaderObserver(){
@@ -1026,64 +995,9 @@ function initStickyHeaderObserver(){
   initStickyHeaderObserver.ro=ro;
   const topbar=document.getElementById("mainTopbar");
   const head=matchesHeadEl();
-  const onMatches=document.body.classList.contains("on-matches");
-  if(head&&!onMatches) ro.observe(head);
-  if(topbar&&!onMatches) ro.observe(topbar);
+  if(topbar) ro.observe(topbar);
+  if(head) ro.observe(head);
   document.querySelectorAll("#teamsShell .matches-head, #stadiumsShell > .topbar, #eventsShell > .topbar").forEach(el=> ro.observe(el));
-}
-
-function setHeaderScrollVars(progress){
-  const root=document.documentElement;
-  const reveal=Math.max(0, 1-progress);
-  root.style.setProperty("--header-collapse", progress.toFixed(4));
-  root.style.setProperty("--header-reveal", reveal.toFixed(4));
-}
-
-function resetHeaderCollapse(){
-  setHeaderScrollVars(0);
-  document.getElementById("mainTopbar").classList.remove("header-collapsed");
-  document.body.classList.remove("header-collapsed");
-  syncStickyOffsets();
-}
-
-function resetEventsHeader(){
-  resetHeaderCollapse();
-}
-
-function shouldCollapseHeader(){
-  return document.body.classList.contains("on-matches");
-}
-
-function applyHeaderCollapse(){
-  if(!shouldCollapseHeader()){
-    resetHeaderCollapse();
-    return;
-  }
-  if(topbarExpandedH<=80) measureTopbarExpanded();
-  const distance=topbarExpandedH;
-  const scrollY=window.scrollY;
-  const reduced=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let progress;
-  if(reduced) progress=scrollY>32?1:0;
-  else if(scrollY<=8) progress=0;
-  else progress=Math.min(1, scrollY/distance);
-  setHeaderScrollVars(progress);
-  const collapsed=progress>=0.995;
-  document.getElementById("mainTopbar").classList.toggle("header-collapsed", collapsed);
-  document.body.classList.toggle("header-collapsed", collapsed);
-  syncStickyOffsets();
-}
-
-function updateHeaderCollapse(){
-  if(!shouldCollapseHeader()){
-    resetHeaderCollapse();
-    return;
-  }
-  if(collapseRaf) return;
-  collapseRaf=requestAnimationFrame(()=>{
-    collapseRaf=0;
-    applyHeaderCollapse();
-  });
 }
 
 function updateShellVisibility(){
@@ -1102,15 +1016,11 @@ function updateShellVisibility(){
   else if(onStadiums) document.body.classList.add("view-stadiums");
   else if(onTeams) document.body.classList.add("view-teams");
   else if(onMatches) document.body.classList.add("view-matches", "view-"+state.matchView);
-  if(!onEvents) resetEventsHeader();
-  if(onMatches) measureTopbarExpanded();
   initStickyHeaderObserver();
   syncStickyOffsets();
-  applyHeaderCollapse();
 }
 
 function setMatchView(mv, opts={}){
-  resetHeaderCollapse();
   state.matchView=mv;
   document.getElementById("matchSeg").dataset.tab=mv;
   document.querySelectorAll("#matchSeg button").forEach(b=>b.classList.toggle("active", b.dataset.matchView===mv));
@@ -1132,7 +1042,6 @@ function renderMatchesContent(){
 }
 
 function scrollToPageTop(){
-  resetHeaderCollapse();
   window.scrollTo({top:0, behavior:"smooth"});
 }
 
@@ -1145,10 +1054,8 @@ function handleNavTap(v){
 }
 
 function setView(v){
-  resetHeaderCollapse();
   state.view=v;
   if(v==="events"){
-    resetEventsHeader();
     state.pendingScrollToday="events";
     updateShellVisibility();
     renderTorontoEvents();
@@ -1202,14 +1109,7 @@ document.querySelectorAll("#matchSeg button").forEach(b=> b.onclick=()=>{
   else setMatchView(mv);
 });
 
-window.addEventListener("scroll", updateHeaderCollapse, {passive:true});
-window.addEventListener("scrollend", ()=>{
-  if(window.scrollY<=8&&shouldCollapseHeader()) applyHeaderCollapse();
-}, {passive:true});
-window.addEventListener("resize", ()=>{
-  if(document.body.classList.contains("on-matches")) measureTopbarExpanded();
-  else syncStickyOffsets();
-}, {passive:true});
+window.addEventListener("resize", syncStickyOffsets, {passive:true});
 
 const stadiumSearchInput=document.getElementById("stadiumSearchInput");
 const stadiumSearchBox=document.getElementById("stadiumSearchBox");
@@ -1257,10 +1157,8 @@ document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSheet(); });
     updateShellVisibility();
     state.pendingScrollToday="list";
     setView("matches");
-    measureTopbarExpanded();
     initStickyHeaderObserver();
     syncStickyOffsets();
-    applyHeaderCollapse();
     startLiveSync();
   } catch (err) {
     const msg=document.createElement("div");
