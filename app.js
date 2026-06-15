@@ -100,7 +100,30 @@ function syncCalendarToToday(selectDay){
   return true;
 }
 
-const SCROLL_TOP_OFFSET = 148;
+function stickyHeaderHeight(){
+  const onMatches=document.body.classList.contains("on-matches");
+  const head=matchesHeadEl();
+  const matchesVisible=head && !document.getElementById("matchesShell").classList.contains("hidden");
+
+  if(onMatches && matchesVisible && head){
+    const collapse=headerCollapseProgress();
+    const topH=Math.ceil(topbarExpandedH*Math.max(0, 1-collapse));
+    return topH+head.getBoundingClientRect().height;
+  }
+
+  const v=getComputedStyle(document.documentElement).getPropertyValue("--header-h").trim();
+  if(v.endsWith("px")) return parseFloat(v);
+
+  let h=0;
+  const topbar=document.getElementById("mainTopbar");
+  if(topbar) h+=topbar.offsetHeight;
+  if(matchesVisible && head) h+=head.offsetHeight;
+  else {
+    const searchBar=activeSearchBar();
+    if(searchBar) h+=searchBar.offsetHeight;
+  }
+  return h||120;
+}
 
 function scrollToDateSection(container, ymd){
   if(!container || !ymd) return;
@@ -112,7 +135,7 @@ function scrollToDateSection(container, ymd){
         el = els.find(e => e.dataset.ymd >= ymd) || els[els.length - 1];
       }
       if(!el) return;
-      const top = el.getBoundingClientRect().top + window.scrollY - SCROLL_TOP_OFFSET;
+      const top = el.getBoundingClientRect().top + window.scrollY - stickyHeaderHeight();
       window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     });
   });
@@ -127,7 +150,8 @@ function scrollToTodaySection(container){
 function goToListForDate(month, day){
   state.scrollToYmd = "2026-"+pad(month + 1)+"-"+pad(day);
   state.pendingScrollToday = null;
-  setView("list");
+  setView("matches");
+  setMatchView("list", {scroll:false});
 }
 
 /* ---------- Build schedule from official FIFA data ---------- */
@@ -234,16 +258,13 @@ function dateLong(m){
 }
 
 /* ---------- State ---------- */
-const STAGE_FILTERS=[
-  {id:"all", label:"All matches"},
-  {id:"group", label:"Group Stage"},
-  {id:"r32", label:"Round of 32"},
-  {id:"r16", label:"Round of 16"},
-  {id:"qf", label:"Quarter-finals"},
-  {id:"sf", label:"Semi-finals"},
-  {id:"final", label:"Final"},
-];
-let state={ seg:"matches", view:"list", query:"", evQuery:"", stadiumQuery:"", stage:"all", calMonth:5, calSel:null, pendingScrollToday:null, scrollToYmd:null };
+const SEARCH_PLACEHOLDERS={
+  matches:"Search teams, groups, cities, stages\u2026",
+  teams:"Search teams or groups\u2026",
+  stadiums:"Search stadiums or cities\u2026",
+  events:"Search venues, events, neighbourhoods\u2026",
+};
+let state={ view:"matches", matchView:"list", query:"", teamQuery:"", evQuery:"", stadiumQuery:"", calMonth:5, calSel:null, pendingScrollToday:null, scrollToYmd:null };
 
 /* ---------- Live scores (FIFA API) ---------- */
 const FIFA_MATCHES_URL = "https://api.fifa.com/api/v3/calendar/matches?count=500&idSeason=285023&language=en";
@@ -322,8 +343,9 @@ async function syncGoals(){
     }));
     if(changed){
       if(state.view==="events") renderTorontoEvents();
-      else if(state.seg==="stadiums") renderStadiums();
-      else renderCurrent();
+      else if(state.view==="stadiums") renderStadiums();
+      else if(state.view==="teams") renderTeams();
+      else if(state.view==="matches") renderMatchesContent();
     }
   } finally {
     goalsSyncing = false;
@@ -340,8 +362,9 @@ async function fetchLiveScores(){
     const scoresChanged = applyLiveResults(data.Results);
     if(scoresChanged){
       if(state.view === "events") renderTorontoEvents();
-      else if(state.seg === "stadiums") renderStadiums();
-      else renderCurrent();
+      else if(state.view === "stadiums") renderStadiums();
+      else if(state.view==="teams") renderTeams();
+      else if(state.view==="matches") renderMatchesContent();
     }
     await syncGoals();
   } catch (_) { /* offline or blocked — keep bundled scores */ }
@@ -380,13 +403,6 @@ const TEAM_ALIASES={
   ned:"netherlands holland", sui:"switzerland", cze:"czechia czech republic",
 };
 
-const SEARCH_PLACEHOLDERS={
-  list:"Search teams, groups, cities, stages\u2026",
-  cal:"Search teams, groups, cities, stages\u2026",
-  teams:"Search teams or groups\u2026",
-  events:"Search venues, events, neighbourhoods\u2026",
-};
-
 function matchSearchHay(m){
   const h=homeTeam(m), a=awayTeam(m), v=V[m.venue];
   return [
@@ -410,17 +426,12 @@ function teamMatchesQuery(t, g, q){
 
 function filtered(){
   const q=state.query.trim().toLowerCase();
-  return MATCHES.filter(m=>{
-    if(state.stage!=="all" && m.stage!==state.stage) return false;
-    if(state.view==="teams") return true;
-    return matchMatchesQuery(m, q);
-  });
+  return MATCHES.filter(m=> matchMatchesQuery(m, q));
 }
 
 function updateSearchPlaceholder(){
-  const ph=SEARCH_PLACEHOLDERS[state.view]||SEARCH_PLACEHOLDERS.list;
   const input=document.getElementById("searchInput");
-  if(input && state.view!=="events") input.placeholder=ph;
+  if(input && state.view==="matches") input.placeholder=SEARCH_PLACEHOLDERS.matches;
 }
 
 /* ============================================================
@@ -548,8 +559,8 @@ function renderCalendar(){
 
 /* ---------- Teams ---------- */
 function renderTeams(){
-  const view=document.getElementById("view-teams");
-  const q=state.query.trim().toLowerCase();
+  const view=document.getElementById("teamsMain");
+  const q=state.teamQuery.trim().toLowerCase();
   let html="";
   Object.keys(GROUPS).forEach(g=>{
     const members=GROUPS[g].map(teamObj).filter(t=> teamMatchesQuery(t,g,q));
@@ -574,7 +585,7 @@ function renderTeams(){
 const scrim=document.getElementById("scrim");
 const sheet=document.getElementById("sheet");
 function openSheet(html){
-  sheet.innerHTML=`<div class="grab"></div><button type="button" class="sheet-close" aria-label="Close">${ICON_CLOSE}</button>`+html;
+  sheet.innerHTML=`<button type="button" class="sheet-close" aria-label="Close">${ICON_CLOSE}</button><div class="sheet-scroll"><div class="grab"></div>`+html+`</div>`;
   sheet.querySelector(".sheet-close").onclick=closeSheet;
   scrim.classList.add("open");
   document.body.style.overflow="hidden";
@@ -881,6 +892,7 @@ function renderTorontoEvents(){
   if(!html) html=emptyHTML("No events found","Try another venue or neighbourhood.");
   view.innerHTML=html;
   view.querySelectorAll(".ev-row[data-ev]").forEach(b=> b.onclick=()=>openEventDetail(b.dataset.ev));
+  requestAnimationFrame(syncStickyOffsets);
   if(state.pendingScrollToday==="events"){
     state.pendingScrollToday=null;
     scrollToTodaySection(view);
@@ -941,93 +953,227 @@ function openStadium(key){
   bindCards(sheet.querySelector(".sh-matches")||sheet);
 }
 
-function resetEventsHeader(){
+function matchesHeadEl(){
+  return document.getElementById("matchesHead");
+}
+
+function activeSearchBar(){
+  return document.querySelector("#matchesShell:not(.hidden) .matches-head > .topbar, #teamsShell:not(.hidden) .matches-head > .topbar, #stadiumsShell:not(.hidden) > .topbar, #eventsShell:not(.hidden) > .topbar");
+}
+
+let topbarExpandedH=118;
+let collapseRaf=0;
+
+function headerCollapseProgress(){
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--header-collapse"))||0;
+}
+
+function measureTopbarExpanded(){
   const topbar=document.getElementById("mainTopbar");
+  if(!topbar||!document.body.classList.contains("on-matches")) return topbarExpandedH;
+  const root=document.documentElement;
+  root.style.setProperty("--header-collapse", "0");
+  root.style.setProperty("--header-reveal", "1");
   topbar.classList.remove("header-collapsed");
   document.body.classList.remove("header-collapsed");
+  void topbar.offsetHeight;
+  const brand=topbar.querySelector(".brandrow");
+  const brandH=brand?brand.offsetHeight:0;
+  topbarExpandedH=Math.max(96, Math.ceil(topbar.getBoundingClientRect().height));
+  root.style.setProperty("--topbar-expanded-h", topbarExpandedH+"px");
+  root.style.setProperty("--brand-row-h", Math.ceil(brandH)+"px");
+  applyHeaderCollapse();
+  return topbarExpandedH;
+}
+
+function syncStickyOffsets(){
+  const topbar=document.getElementById("mainTopbar");
+  const head=matchesHeadEl();
+  const onMatches=document.body.classList.contains("on-matches");
+  const matchesVisible=head && !document.getElementById("matchesShell").classList.contains("hidden");
+  const root=document.documentElement;
+
+  if(onMatches&&head){
+    const expanded=topbarExpandedH||measureTopbarExpanded();
+    const collapse=headerCollapseProgress();
+    const reveal=Math.max(0, 1-collapse);
+    const topH=Math.ceil(expanded*reveal);
+    const headH=Math.ceil(head.getBoundingClientRect().height);
+    root.style.setProperty("--sticky-search-top", topH+"px");
+    root.style.setProperty("--header-h", (topH+headH)+"px");
+    return;
+  }
+
+  if(!topbar) return;
+  const topH=Math.ceil(topbar.getBoundingClientRect().height);
+  root.style.setProperty("--sticky-search-top", topH+"px");
+
+  if(matchesVisible&&head){
+    const total=topH+Math.ceil(head.getBoundingClientRect().height);
+    root.style.setProperty("--header-h", total+"px");
+    return;
+  }
+
+  const searchBar=activeSearchBar();
+  const total=topH+(searchBar?Math.ceil(searchBar.getBoundingClientRect().height):0);
+  root.style.setProperty("--header-h", total+"px");
+}
+
+function initStickyHeaderObserver(){
+  if(typeof ResizeObserver==="undefined") return;
+  const ro=new ResizeObserver(()=> syncStickyOffsets());
+  if(initStickyHeaderObserver.ro) initStickyHeaderObserver.ro.disconnect();
+  initStickyHeaderObserver.ro=ro;
+  const topbar=document.getElementById("mainTopbar");
+  const head=matchesHeadEl();
+  const onMatches=document.body.classList.contains("on-matches");
+  if(head&&!onMatches) ro.observe(head);
+  if(topbar&&!onMatches) ro.observe(topbar);
+  document.querySelectorAll("#teamsShell .matches-head, #stadiumsShell > .topbar, #eventsShell > .topbar").forEach(el=> ro.observe(el));
+}
+
+function setHeaderScrollVars(progress){
+  const root=document.documentElement;
+  const reveal=Math.max(0, 1-progress);
+  root.style.setProperty("--header-collapse", progress.toFixed(4));
+  root.style.setProperty("--header-reveal", reveal.toFixed(4));
+}
+
+function resetHeaderCollapse(){
+  setHeaderScrollVars(0);
+  document.getElementById("mainTopbar").classList.remove("header-collapsed");
+  document.body.classList.remove("header-collapsed");
+  syncStickyOffsets();
+}
+
+function resetEventsHeader(){
+  resetHeaderCollapse();
+}
+
+function shouldCollapseHeader(){
+  return document.body.classList.contains("on-matches");
+}
+
+function applyHeaderCollapse(){
+  if(!shouldCollapseHeader()){
+    resetHeaderCollapse();
+    return;
+  }
+  if(topbarExpandedH<=80) measureTopbarExpanded();
+  const distance=topbarExpandedH;
+  const scrollY=window.scrollY;
+  const reduced=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let progress;
+  if(reduced) progress=scrollY>32?1:0;
+  else if(scrollY<=8) progress=0;
+  else progress=Math.min(1, scrollY/distance);
+  setHeaderScrollVars(progress);
+  const collapsed=progress>=0.995;
+  document.getElementById("mainTopbar").classList.toggle("header-collapsed", collapsed);
+  document.body.classList.toggle("header-collapsed", collapsed);
+  syncStickyOffsets();
+}
+
+function updateHeaderCollapse(){
+  if(!shouldCollapseHeader()){
+    resetHeaderCollapse();
+    return;
+  }
+  if(collapseRaf) return;
+  collapseRaf=requestAnimationFrame(()=>{
+    collapseRaf=0;
+    applyHeaderCollapse();
+  });
 }
 
 function updateShellVisibility(){
+  const onMatches=state.view==="matches";
   const onEvents=state.view==="events";
-  const onStadiums=state.seg==="stadiums" && !onEvents;
-  const onMatches=!onEvents && !onStadiums;
+  const onStadiums=state.view==="stadiums";
+  const onTeams=state.view==="teams";
   document.getElementById("matchesShell").classList.toggle("hidden", !onMatches);
   document.getElementById("stadiumsShell").classList.toggle("hidden", !onStadiums);
   document.getElementById("eventsShell").classList.toggle("hidden", !onEvents);
-  document.getElementById("segWrap").classList.toggle("hidden", onEvents);
+  document.getElementById("teamsShell").classList.toggle("hidden", !onTeams);
+  document.body.classList.toggle("on-matches", onMatches);
   document.body.classList.toggle("on-events", onEvents);
+  document.body.classList.remove("view-matches","view-list","view-cal","view-teams","view-stadiums","view-events");
+  if(onEvents) document.body.classList.add("view-events");
+  else if(onStadiums) document.body.classList.add("view-stadiums");
+  else if(onTeams) document.body.classList.add("view-teams");
+  else if(onMatches) document.body.classList.add("view-matches", "view-"+state.matchView);
   if(!onEvents) resetEventsHeader();
+  if(onMatches) measureTopbarExpanded();
+  initStickyHeaderObserver();
+  syncStickyOffsets();
+  applyHeaderCollapse();
 }
 
-function setSeg(seg){
-  state.seg=seg;
-  document.getElementById("appSeg").dataset.tab=seg;
-  document.querySelectorAll("#appSeg button").forEach(b=>b.classList.toggle("active", b.dataset.seg===seg));
-  if(state.view==="events"){
-    state.view="list";
-    document.querySelectorAll("#bottomNav button").forEach(b=>b.classList.toggle("active", b.dataset.view==="list"));
-    document.querySelectorAll(".view").forEach(s=>s.classList.remove("active"));
-    document.getElementById("view-list").classList.add("active");
+function setMatchView(mv, opts={}){
+  resetHeaderCollapse();
+  state.matchView=mv;
+  document.getElementById("matchSeg").dataset.tab=mv;
+  document.querySelectorAll("#matchSeg button").forEach(b=>b.classList.toggle("active", b.dataset.matchView===mv));
+  document.querySelectorAll("#matchesMain .view").forEach(s=>s.classList.remove("active"));
+  document.getElementById("view-"+mv).classList.add("active");
+  document.body.classList.remove("view-list","view-cal");
+  document.body.classList.add("view-"+mv);
+  if(mv==="list" && !state.scrollToYmd) state.pendingScrollToday="list";
+  else if(mv==="cal") syncCalendarToToday(true);
+  renderMatchesContent();
+  syncStickyOffsets();
+  if(opts.scroll!==false && !state.scrollToYmd) window.scrollTo({top:0});
+}
+
+function renderMatchesContent(){
+  if(state.matchView==="list") renderList();
+  else renderCalendar();
+  requestAnimationFrame(syncStickyOffsets);
+}
+
+function scrollToPageTop(){
+  resetHeaderCollapse();
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+
+function handleNavTap(v){
+  if(state.view===v){
+    scrollToPageTop();
+    return;
   }
-  if(seg==="stadiums"){
-    updateShellVisibility();
-    renderStadiums();
-    window.scrollTo({top:0});
-  } else {
-    updateShellVisibility();
-    document.getElementById("chips").style.display = state.view==="teams" ? "none" : "flex";
-    if(state.view==="list" && !state.scrollToYmd) state.pendingScrollToday="list";
-    else if(state.view==="cal") syncCalendarToToday(true);
-    renderCurrent();
-    if(state.view!=="list" || state.scrollToYmd) window.scrollTo({top:0});
-  }
-}
-
-/* ============================================================
-   Wiring
-   ============================================================ */
-function renderChips(){
-  const wrap=document.getElementById("chips");
-  wrap.innerHTML=STAGE_FILTERS.map(f=>`<button class="chip ${state.stage===f.id?'active':''}" data-stage="${f.id}">${f.label}</button>`).join("");
-  wrap.querySelectorAll(".chip").forEach(c=> c.onclick=()=>{ state.stage=c.dataset.stage; state.calSel=null; renderChips(); renderCurrent(); });
-}
-
-function renderCurrent(){
-  if(state.view==="list") renderList();
-  else if(state.view==="cal") renderCalendar();
-  else if(state.view==="teams") renderTeams();
+  setView(v);
 }
 
 function setView(v){
+  resetHeaderCollapse();
   state.view=v;
   if(v==="events"){
     resetEventsHeader();
-    state.seg="matches";
-    document.getElementById("appSeg").dataset.tab="matches";
-    document.querySelectorAll("#appSeg button").forEach(b=>b.classList.toggle("active", b.dataset.seg==="matches"));
     state.pendingScrollToday="events";
     updateShellVisibility();
     renderTorontoEvents();
     window.scrollTo({top:0});
-  } else {
-    state.seg="matches";
-    document.getElementById("appSeg").dataset.tab="matches";
-    document.querySelectorAll("#appSeg button").forEach(b=>b.classList.toggle("active", b.dataset.seg==="matches"));
-    document.querySelectorAll(".view").forEach(s=>s.classList.remove("active"));
-    document.getElementById("view-"+v).classList.add("active");
-    document.getElementById("chips").style.display = v==="teams" ? "none" : "flex";
+  } else if(v==="stadiums"){
+    updateShellVisibility();
+    renderStadiums();
+    window.scrollTo({top:0});
+  } else if(v==="teams"){
+    updateShellVisibility();
+    renderTeams();
+    window.scrollTo({top:0});
+  } else if(v==="matches"){
     updateSearchPlaceholder();
     updateShellVisibility();
-    if(v==="list"){
-      if(!state.scrollToYmd) state.pendingScrollToday="list";
-    } else if(v==="cal") syncCalendarToToday(true);
-    else window.scrollTo({top:0});
-    renderCurrent();
+    document.querySelectorAll("#matchesMain .view").forEach(s=>s.classList.remove("active"));
+    document.getElementById("view-"+state.matchView).classList.add("active");
+    if(state.matchView==="list" && !state.scrollToYmd) state.pendingScrollToday="list";
+    else if(state.matchView==="cal") syncCalendarToToday(true);
+    renderMatchesContent();
   }
   document.querySelectorAll("#bottomNav button").forEach(b=>b.classList.toggle("active", b.dataset.view===v));
 }
 
-document.querySelectorAll("#bottomNav button").forEach(b=> b.onclick=()=>setView(b.dataset.view));
+document.querySelectorAll("#bottomNav button").forEach(b=> b.onclick=()=>handleNavTap(b.dataset.view));
 
 const searchInput=document.getElementById("searchInput");
 const searchBox=document.getElementById("searchBox");
@@ -1036,9 +1182,9 @@ searchInput.addEventListener("input", ()=>{
   state.query=searchInput.value;
   searchBox.classList.toggle("has-value", !!searchInput.value);
   state.calSel=null;
-  renderCurrent();
+  renderMatchesContent();
 });
-searchClear.addEventListener("click",(e)=>{ e.preventDefault(); searchInput.value=""; state.query=""; searchBox.classList.remove("has-value"); renderCurrent(); });
+searchClear.addEventListener("click",(e)=>{ e.preventDefault(); searchInput.value=""; state.query=""; searchBox.classList.remove("has-value"); renderMatchesContent(); });
 
 const evSearchInput=document.getElementById("evSearchInput");
 const evSearchBox=document.getElementById("evSearchBox");
@@ -1050,13 +1196,19 @@ evSearchInput.addEventListener("input", ()=>{
 });
 evSearchClear.addEventListener("click",(e)=>{ e.preventDefault(); evSearchInput.value=""; state.evQuery=""; evSearchBox.classList.remove("has-value"); renderTorontoEvents(); });
 
-document.querySelectorAll("#appSeg button").forEach(b=> b.onclick=()=>setSeg(b.dataset.seg));
+document.querySelectorAll("#matchSeg button").forEach(b=> b.onclick=()=>{
+  const mv=b.dataset.matchView;
+  if(state.view==="matches" && state.matchView===mv) scrollToPageTop();
+  else setMatchView(mv);
+});
 
-window.addEventListener("scroll", ()=>{
-  if(state.view!=="events") return;
-  const collapsed=window.scrollY>32;
-  document.getElementById("mainTopbar").classList.toggle("header-collapsed", collapsed);
-  document.body.classList.toggle("header-collapsed", collapsed);
+window.addEventListener("scroll", updateHeaderCollapse, {passive:true});
+window.addEventListener("scrollend", ()=>{
+  if(window.scrollY<=8&&shouldCollapseHeader()) applyHeaderCollapse();
+}, {passive:true});
+window.addEventListener("resize", ()=>{
+  if(document.body.classList.contains("on-matches")) measureTopbarExpanded();
+  else syncStickyOffsets();
 }, {passive:true});
 
 const stadiumSearchInput=document.getElementById("stadiumSearchInput");
@@ -1077,17 +1229,38 @@ if(stadiumSearchInput){
   });
 }
 
+const teamSearchInput=document.getElementById("teamSearchInput");
+const teamSearchBox=document.getElementById("teamSearchBox");
+const teamSearchClear=document.getElementById("teamSearchClear");
+if(teamSearchInput){
+  teamSearchInput.addEventListener("input", ()=>{
+    state.teamQuery=teamSearchInput.value;
+    teamSearchBox.classList.toggle("has-value", !!teamSearchInput.value);
+    renderTeams();
+  });
+  teamSearchClear.addEventListener("click",(e)=>{
+    e.preventDefault();
+    teamSearchInput.value="";
+    state.teamQuery="";
+    teamSearchBox.classList.remove("has-value");
+    renderTeams();
+  });
+}
+
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSheet(); });
 
 /* init */
 (function boot(){
   try {
     syncCalendarToToday(true);
-    renderChips();
     updateSearchPlaceholder();
     updateShellVisibility();
     state.pendingScrollToday="list";
-    setView("list");
+    setView("matches");
+    measureTopbarExpanded();
+    initStickyHeaderObserver();
+    syncStickyOffsets();
+    applyHeaderCollapse();
     startLiveSync();
   } catch (err) {
     const msg=document.createElement("div");

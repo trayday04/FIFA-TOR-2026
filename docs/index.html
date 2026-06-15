@@ -39,7 +39,28 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --nav-h: 64px;
-  --header-h: calc(var(--safe-top) + 118px);
+  --brand-bar-h: 62px;
+  --seg-bar-h: 56px;
+  --search-bar-h: 56px;
+  --chips-bar-h: 49px;
+  --glass-bg: rgba(10, 10, 10, 0.94);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(24px) saturate(180%);
+  --sticky-search-top: 0px;
+  --header-h: 120px;
+  --header-collapse: 0;
+  --header-reveal: 1;
+  --topbar-expanded-h: 118px;
+  --brand-row-h: 48px;
+  --seg-row-h: 48px;
+}
+
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -79,26 +100,146 @@ input { font-family: inherit; }
   top: 0;
   z-index: 40;
   padding: calc(var(--safe-top) + 12px) 16px 12px;
-  background: linear-gradient(180deg, rgba(10,10,10,0.98) 70%, rgba(10,10,10,0));
-  backdrop-filter: blur(12px);
   transition: padding .2s ease;
 }
-.topbar .brandrow {
+.topbar#mainTopbar {
+  background-color: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  overflow: visible;
+  isolation: isolate;
+}
+.brandrow {
+  display: flex; align-items: center; gap: 12px;
   transition: opacity .22s ease, max-height .22s ease, margin .22s ease;
   max-height: 80px;
   overflow: hidden;
 }
-.topbar.header-collapsed { padding-bottom: 4px; }
-.topbar.header-collapsed .brandrow {
+.topbar .segwrap {
+  transition: opacity .22s ease, max-height .22s ease, padding .22s ease;
+  max-height: 80px;
+  overflow: hidden;
+}
+.topbar.header-collapsed {
+  padding-bottom: 4px;
+}
+body:not(.on-matches) .topbar.header-collapsed .brandrow {
   opacity: 0;
   max-height: 0;
   margin: 0;
   pointer-events: none;
 }
-.topbar.header-collapsed .segwrap { display: none; }
-body.on-events .ev-dayhdr { top: calc(var(--safe-top) + 118px); }
-body.on-events.header-collapsed .ev-dayhdr { top: calc(var(--safe-top) + 68px); }
-.brandrow { display: flex; align-items: center; gap: 12px; }
+body:not(.on-matches) .topbar.header-collapsed .segwrap {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  pointer-events: none;
+}
+.segwrap.hidden { display: none; }
+
+/* Shared sticky header stack */
+body.view-matches .matches-head,
+body.view-cal .matches-head,
+body.view-teams #teamsShell > .matches-head,
+body.view-stadiums #stadiumsShell > .topbar,
+body.view-events #eventsShell > .topbar {
+  background-color: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  isolation: isolate;
+}
+body.view-matches .matches-head,
+body.view-cal .matches-head,
+body.view-teams #teamsShell > .matches-head,
+body.view-stadiums #stadiumsShell > .topbar,
+body.view-events #eventsShell > .topbar {
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+}
+
+body.view-matches #mainTopbar,
+body.view-cal #mainTopbar,
+body.view-teams #mainTopbar,
+body.view-stadiums #mainTopbar,
+body.view-events #mainTopbar {
+  background-color: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  isolation: isolate;
+}
+
+/* Search + page views as one sticky block below brand */
+.matches-head {
+  position: sticky;
+  top: var(--sticky-search-top);
+  z-index: 39;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.matches-head > .topbar,
+.matches-head > .match-segwrap {
+  position: static;
+  top: auto;
+  z-index: auto;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+  transform: none;
+}
+.matches-head > .topbar { overflow: visible; }
+.matches-head > .topbar {
+  padding: 8px 16px 0;
+  transition: none;
+}
+.matches-head > .topbar .search { margin-top: 0; }
+.matches-head > .match-segwrap { padding: 8px 16px 10px; }
+
+/* Matches page: scroll-linked collapse */
+body.on-matches #mainTopbar {
+  overflow: hidden;
+  padding-top: calc((var(--safe-top) + 12px) * var(--header-reveal, 1));
+  padding-bottom: calc(12px * var(--header-reveal, 1));
+  border-bottom-color: rgba(255, 255, 255, calc(0.08 * var(--header-reveal, 1)));
+  box-shadow: 0 calc(4px * var(--header-reveal, 1)) calc(24px * var(--header-reveal, 1)) rgba(0, 0, 0, calc(0.35 * var(--header-reveal, 1)));
+}
+body.on-matches #mainTopbar .brandrow {
+  opacity: var(--header-reveal, 1);
+  transform: translate3d(0, calc(-8px * var(--header-collapse, 0)), 0);
+  max-height: calc(var(--brand-row-h) * var(--header-reveal, 1));
+  margin-bottom: calc(4px * var(--header-reveal, 1));
+}
+body.on-matches .matches-head {
+  top: calc(var(--topbar-expanded-h) * var(--header-reveal, 1));
+  padding-top: calc((var(--safe-top) + 8px) * var(--header-collapse, 0));
+}
+body.on-matches.header-collapsed .matches-head {
+  z-index: 41;
+}
+body.on-matches.header-collapsed #mainTopbar .brandrow { pointer-events: none; }
+body.on-matches .matches-head > .topbar {
+  padding-top: calc(8px * (1 - var(--header-collapse, 0)));
+}
+
+#stadiumsShell > .topbar,
+#eventsShell > .topbar {
+  position: sticky;
+  top: var(--sticky-search-top);
+  z-index: 39;
+  padding: 8px 16px 8px;
+  background-color: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  overflow: visible;
+  transform: translateZ(0);
+  isolation: isolate;
+}
+#stadiumsShell > .topbar .search,
+#eventsShell > .topbar .ev-search { margin-top: 0; }
 .crest {
   width: 38px; height: 38px; flex: none;
   border-radius: 10px;
@@ -131,24 +272,8 @@ body.on-events.header-collapsed .ev-dayhdr { top: calc(var(--safe-top) + 68px); 
 .search .clear { color: var(--faint); font-size: 20px; line-height: 1; display: none; padding: 2px 4px; }
 .search.has-value .clear { display: block; }
 
-/* ===== Stage filter chips ===== */
-.chips {
-  display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 4px;
-  scroll-snap-type: x proximity;
-}
-.chip {
-  flex: none; scroll-snap-align: start;
-  font-size: 12.5px; font-weight: 600;
-  padding: 8px 14px; border-radius: 999px;
-  background: var(--surface); color: var(--muted);
-  border: 1px solid var(--line);
-  white-space: nowrap;
-  transition: all .15s;
-}
-.chip.active { background: var(--volt); color: #0a0a0a; border-color: var(--volt); }
-
 /* ===== Main scroll area ===== */
-#matchesMain, #stadiumsMain, #eventsMain {
+#matchesMain, #stadiumsMain, #eventsMain, #teamsMain {
   flex: 1;
   padding: 6px 16px calc(var(--nav-h) + var(--safe-bottom) + 28px);
 }
@@ -164,9 +289,12 @@ body.on-events.header-collapsed .ev-dayhdr { top: calc(var(--safe-top) + 68px); 
   display: flex; align-items: baseline; gap: 10px;
   padding: 14px 2px 12px;
   margin: 0 -2px 6px;
-  background: var(--bg);
-  box-shadow: 0 8px 20px rgba(0,0,0,.55);
-  border-bottom: 1px solid var(--line);
+  background-color: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  isolation: isolate;
 }
 .daysep .dnum { font-family: "FWC26", sans-serif; font-size: 26px; line-height: 1; }
 .daysep .dwrap { display: flex; flex-direction: column; }
@@ -245,10 +373,23 @@ body.on-events.header-collapsed .ev-dayhdr { top: calc(var(--safe-top) + 68px); 
 
 /* ===== empty state ===== */
 .empty { text-align: center; padding: 60px 20px; color: var(--faint); }
-.empty .big { font-family: "FWC26", sans-serif; font-size: 26px; color: var(--muted); margin-bottom: 8px; }
+.empty .big { font-family: "FWC26", sans-serif; font-size: 20px; letter-spacing: 0.02em; color: var(--muted); margin-bottom: 8px; }
 
 /* ===== Calendar ===== */
-.calhead { display: flex; align-items: center; justify-content: space-between; padding: 14px 2px 8px; }
+.calhead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px 12px;
+  margin: 0 -16px 8px;
+  position: sticky;
+  top: var(--header-h);
+  z-index: 12;
+  background-color: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  isolation: isolate;
+}
 .calhead .mlabel { font-family: "FWC26", sans-serif; font-size: 28px; }
 .calhead .mlabel em { color: var(--volt); font-style: normal; }
 .calnav { display: flex; gap: 8px; }
@@ -328,14 +469,20 @@ body.on-events.header-collapsed .ev-dayhdr { top: calc(var(--safe-top) + 68px); 
   position: relative;
   width: 100%; max-width: 520px; background: var(--bg-2);
   border-radius: 24px 24px 0 0; border: 1px solid var(--line); border-bottom: none;
-  padding: 10px 18px calc(var(--safe-bottom) + 26px);
   transform: translateY(100%); transition: transform .26s cubic-bezier(.2,.8,.2,1);
-  max-height: 88vh; overflow-y: auto;
+  max-height: 88vh; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.sheet-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 18px calc(var(--safe-bottom) + 26px);
+  flex: 1; min-height: 0;
 }
 .scrim.open .sheet { transform: none; }
 .grab { width: 40px; height: 4px; border-radius: 99px; background: #3a3a3a; margin: 8px auto 16px; }
 .sheet-close {
-  position: absolute; top: 14px; right: 14px; z-index: 8;
+  position: absolute; top: 14px; right: 14px; z-index: 10;
   width: 34px; height: 34px; border-radius: 50%;
   background: rgba(0,0,0,.58); backdrop-filter: blur(8px);
   border: 1px solid rgba(255,255,255,.14); color: var(--text);
@@ -435,7 +582,7 @@ body.on-events.header-collapsed .ev-dayhdr { top: calc(var(--safe-top) + 68px); 
   background: var(--volt); border-radius: 9px;
   transition: transform .24s cubic-bezier(.2,.8,.2,1);
 }
-.seg[data-tab="toronto"] .seg-ind { transform: translateX(100%); }
+.seg[data-tab="cal"] .seg-ind { transform: translateX(100%); }
 .seg button {
   flex: 1; position: relative; z-index: 1;
   font-size: 13px; font-weight: 700; padding: 9px 8px; border-radius: 9px;
@@ -447,8 +594,8 @@ body.on-events.header-collapsed .ev-dayhdr { top: calc(var(--safe-top) + 68px); 
 .nav button { font-size: 10px; }
 
 /* ===== Stadiums ===== */
-#matchesShell, #stadiumsShell, #eventsShell { display:flex; flex-direction:column; flex:1; min-height:0; }
-#stadiumsShell.hidden, #eventsShell.hidden, #matchesShell.hidden { display:none !important; }
+#matchesShell, #stadiumsShell, #eventsShell, #teamsShell { display:flex; flex-direction:column; flex:1; min-height:0; }
+#stadiumsShell.hidden, #eventsShell.hidden, #matchesShell.hidden, #teamsShell.hidden { display:none !important; }
 .stadium-card {
   display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
@@ -469,12 +616,18 @@ body.on-events.header-collapsed .ev-dayhdr { top: calc(var(--safe-top) + 68px); 
 .sh-matches .card { margin-bottom: 0; }
 
 /* ===== Toronto events ===== */
-.ev-search { margin-top: 14px; }
 .ev-day { margin-bottom: 22px; }
 .ev-dayhdr {
   display: flex; align-items: baseline; gap: 10px;
-  padding: 16px 2px 10px; position: sticky; top: calc(var(--safe-top) + 118px); z-index: 4;
-  background: linear-gradient(180deg, var(--bg) 80%, rgba(10,10,10,0));
+  padding: 14px 18px 12px;
+  margin: 0 -16px 6px;
+  position: sticky; top: var(--header-h); z-index: 12;
+  background-color: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  isolation: isolate;
 }
 .ev-dayhdr .dnum { font-family: "FWC26", sans-serif; font-size: 28px; line-height: 1; }
 .ev-dayhdr .dwrap { display: flex; flex-direction: column; }
@@ -540,35 +693,47 @@ body.on-events.header-collapsed .ev-dayhdr { top: calc(var(--safe-top) + 68px); 
         <div class="s">Canada &middot; Mexico &middot; USA</div>
       </div>
     </div>
-    <div class="segwrap" id="segWrap">
-      <div class="seg" id="appSeg" data-tab="matches">
-        <div class="seg-ind"></div>
-        <button data-seg="matches" class="active">Matches</button>
-        <button data-seg="stadiums">Stadiums</button>
-      </div>
-    </div>
   </header>
 
   <div id="matchesShell">
-    <div class="topbar" style="padding-top:0;padding-bottom:0">
-    <label class="search" id="searchBox">
+    <div class="matches-head" id="matchesHead">
+      <div class="topbar">
+      <label class="search" id="searchBox">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="searchInput" type="search" placeholder="Search teams, groups, cities, stages&hellip;" autocomplete="off" />
       <button class="clear" id="searchClear" aria-label="Clear">&times;</button>
     </label>
+      </div>
+      <div class="segwrap match-segwrap" id="matchSegWrap">
+        <div class="seg" id="matchSeg" data-tab="list">
+          <div class="seg-ind"></div>
+          <button type="button" data-match-view="list" class="active">Matches</button>
+          <button type="button" data-match-view="cal">Calendar</button>
+        </div>
+      </div>
     </div>
-
-  <nav class="chips" id="chips"></nav>
 
   <main id="matchesMain">
     <section class="view active" id="view-list"></section>
     <section class="view" id="view-cal"></section>
-    <section class="view" id="view-teams"></section>
   </main>
   </div>
 
+  <div id="teamsShell" class="hidden">
+    <div class="matches-head">
+      <div class="topbar">
+        <label class="search" id="teamSearchBox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="teamSearchInput" type="search" placeholder="Search teams or groups&hellip;" autocomplete="off" />
+          <button class="clear" id="teamSearchClear" aria-label="Clear">&times;</button>
+        </label>
+      </div>
+    </div>
+    <main id="teamsMain"></main>
+  </div>
+
   <div id="stadiumsShell" class="hidden">
-    <div class="topbar" style="padding-top:0;padding-bottom:0">
+    <div class="topbar">
       <label class="search" id="stadiumSearchBox">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="stadiumSearchInput" type="search" placeholder="Search stadiums or cities&hellip;" autocomplete="off" />
@@ -579,33 +744,33 @@ body.on-events.header-collapsed .ev-dayhdr { top: calc(var(--safe-top) + 68px); 
   </div>
 
   <div id="eventsShell" class="hidden">
-    <div class="topbar" style="padding-top:0">
+    <div class="topbar">
       <label class="search ev-search" id="evSearchBox">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="evSearchInput" type="search" placeholder="Search venues, events, neighbourhoods&hellip;" autocomplete="off" />
         <button class="clear" id="evSearchClear" aria-label="Clear">&times;</button>
       </label>
     </div>
-    <main id="eventsMain" style="padding-top:4px"></main>
+    <main id="eventsMain"></main>
     <div class="ev-source">Sources: torontofwc26.ca &middot; toronto.ca &middot; stacktmarket.com &middot; harbourfrontcentre.com</div>
   </div>
 
   <nav class="nav" id="bottomNav">
-    <button data-view="list" class="active">
+    <button data-view="matches" class="active">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="3.5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="3.5" cy="18" r="1.4" fill="currentColor" stroke="none"/></svg>
       Matches
-    </button>
-    <button data-view="cal">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><line x1="3" y1="9.5" x2="21" y2="9.5"/><line x1="8" y1="2.5" x2="8" y2="6.5"/><line x1="16" y1="2.5" x2="16" y2="6.5"/></svg>
-      Calendar
-    </button>
-    <button data-view="teams">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>
-      Teams
     </button>
     <button data-view="events">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7-6.3-4.6L5.7 21l2.3-7-6-4.6h7.6L12 2Z"/></svg>
       Events
+    </button>
+    <button data-view="stadiums">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V9l8-5 8 5v11"/><path d="M9 20v-6h6v6"/><path d="M4 12h16"/></svg>
+      Stadiums
+    </button>
+    <button data-view="teams">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>
+      Teams
     </button>
   </nav>
 </div>
