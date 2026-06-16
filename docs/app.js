@@ -727,6 +727,11 @@ const CAT_DESC={
   experience:"Interactive fan activation, partner pavilion, or all-day experience at the venue.",
 };
 
+function eventCatLabel(cat){
+  if(cat==="match") return "Watch Party";
+  return cat;
+}
+
 let EVENT_CATALOG=null;
 function getEventCatalog(){
   if(EVENT_CATALOG) return EVENT_CATALOG;
@@ -822,7 +827,7 @@ function openEventDetail(evId){
   const html=`
     ${venueHero(VENUE_IMAGES[ev.venueId], ev.meta.name+" \u00b7 "+ev.meta.place)}
     <div class="ev-detail-hdr">
-      <span class="tag ${ev.cat==="match"?"group":"ko"}">${ev.cat}</span>
+      <span class="tag ${ev.cat==="match"?"group":"ko"}">${eventCatLabel(ev.cat)}</span>
       <div class="sh-title" style="font-size:19px;margin:8px 0 6px">${ev.title}</div>
       <div class="time">${ev.t}</div>
       <div class="date">${WDAY_FULL[dt.getDay()]}, ${MONTHS_FULL[dt.getMonth()]} ${dt.getDate()}, 2026${ev.venueTag?" \u00b7 "+ev.venueTag:""}</div>
@@ -855,7 +860,7 @@ function renderTorontoEvents(){
       const meta=TORONTO_VENUES[v.id];
       const events=v.events.filter(e=>{
         if(!q) return true;
-        const hay=[meta.name,meta.place,meta.address,v.tag,e.title,e.t,e.cat].join(" ").toLowerCase();
+        const hay=[meta.name,meta.place,meta.address,v.tag,e.title,e.t,e.cat,eventCatLabel(e.cat)].join(" ").toLowerCase();
         return hay.includes(q);
       });
       return events.length?{...v, meta, events}:null;
@@ -878,7 +883,7 @@ function renderTorontoEvents(){
         const evId=catalog.find(c=>c.ymd===day.ymd && c.venueId===v.id && c.t===e.t && c.title===e.title && c.cat===e.cat);
         html+=`<button type="button" class="ev-row" data-ev="${evId?evId.id:0}">
           <div class="et">${e.t}</div>
-          <div><div class="etitle">${e.title}</div><span class="ecat ${e.cat}">${e.cat}</span></div>
+          <div><div class="etitle">${e.title}</div><span class="ecat ${e.cat}">${eventCatLabel(e.cat)}</span></div>
           <span class="chev" aria-hidden="true">\u203a</span>
         </button>`;
       });
