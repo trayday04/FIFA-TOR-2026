@@ -123,7 +123,7 @@ function stickyHeaderHeight(){
   return h||120;
 }
 
-function scrollToDateSection(container, ymd){
+function scrollToDateSection(container, ymd, behavior="smooth"){
   if(!container || !ymd) return;
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
@@ -134,15 +134,53 @@ function scrollToDateSection(container, ymd){
       }
       if(!el) return;
       const top = el.getBoundingClientRect().top + window.scrollY - stickyHeaderHeight();
-      window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+      window.scrollTo({ top: Math.max(0, top), behavior });
     });
   });
 }
 
-function scrollToTodaySection(container){
+function scrollToMatchCard(container, matchNo, behavior="smooth"){
+  if(!container || matchNo == null) return;
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      const el = container.querySelector('.card[data-match="'+matchNo+'"]');
+      if(!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY - stickyHeaderHeight() - 8;
+      window.scrollTo({ top: Math.max(0, top), behavior });
+    });
+  });
+}
+
+function findAnchorMatch(list){
+  const { now } = todayContext();
+  const sorted = list.slice().sort((a,b)=>a.dateObj-b.dateObj || a.no-b.no);
+
+  const live = sorted.filter(m=>m.live);
+  if(live.length) return live[live.length - 1];
+
+  const finished = sorted.filter(m=>m.finished);
+  if(finished.length) return finished[finished.length - 1];
+
+  const inProgress = sorted.filter(m=>{
+    const elapsed = now - m.dateObj;
+    return elapsed >= 0 && elapsed <= 105 * 60 * 1000;
+  });
+  if(inProgress.length) return inProgress[inProgress.length - 1];
+
+  return null;
+}
+
+function scrollToRecentMatchSection(container, opts={}){
   const t = todayContext();
-  if(!t.inTournament || !container) return;
-  scrollToDateSection(container, t.ymd);
+  if(!container) return;
+  const behavior = opts.instant ? "auto" : "smooth";
+  const anchor = findAnchorMatch(filtered());
+  if(anchor) scrollToMatchCard(container, anchor.no, behavior);
+  else if(t.inTournament) scrollToDateSection(container, t.ymd, behavior);
+}
+
+function scrollToTodaySection(container){
+  scrollToRecentMatchSection(container);
 }
 
 function goToListForDate(month, day){
@@ -270,6 +308,7 @@ const LIVE_POLL_MS = 45000;
 let livePollTimer = null;
 let liveSyncing = false;
 let goalsSyncing = false;
+let anchorScrollAfterLive = false;
 
 function isLiveStatus(st){
   return st === 3 || st === 4 || st === 5 || st === 6 || st === 7;
@@ -365,6 +404,10 @@ async function fetchLiveScores(){
       else if(state.view==="matches") renderMatchesContent();
     }
     await syncGoals();
+    if(anchorScrollAfterLive && state.view==="matches" && state.matchView==="list"){
+      anchorScrollAfterLive=false;
+      scrollToRecentMatchSection(document.getElementById("view-list"), {instant:true});
+    }
   } catch (_) { /* offline or blocked — keep bundled scores */ }
   finally { liveSyncing = false; }
 }
@@ -489,7 +532,7 @@ function renderList(){
     scrollToDateSection(view, ymd);
   } else if(state.pendingScrollToday==="list"){
     state.pendingScrollToday=null;
-    scrollToTodaySection(view);
+    scrollToRecentMatchSection(view, {instant:true});
   }
 }
 
@@ -1037,7 +1080,7 @@ function setMatchView(mv, opts={}){
   else if(mv==="cal") syncCalendarToToday(true);
   renderMatchesContent();
   syncStickyOffsets();
-  if(opts.scroll!==false && !state.scrollToYmd) window.scrollTo({top:0});
+  if(opts.scroll!==false && !state.scrollToYmd && mv!=="list") window.scrollTo({top:0});
 }
 
 function renderMatchesContent(){
@@ -1052,6 +1095,10 @@ function scrollToPageTop(){
 
 function handleNavTap(v){
   if(state.view===v){
+    if(v==="matches" && state.matchView==="list"){
+      scrollToRecentMatchSection(document.getElementById("view-list"));
+      return;
+    }
     scrollToPageTop();
     return;
   }
@@ -1110,7 +1157,10 @@ evSearchClear.addEventListener("click",(e)=>{ e.preventDefault(); evSearchInput.
 
 document.querySelectorAll("#matchSeg button").forEach(b=> b.onclick=()=>{
   const mv=b.dataset.matchView;
-  if(state.view==="matches" && state.matchView===mv) scrollToPageTop();
+  if(state.view==="matches" && state.matchView===mv){
+    if(mv==="list") scrollToRecentMatchSection(document.getElementById("view-list"));
+    else scrollToPageTop();
+  }
   else setMatchView(mv);
 });
 
@@ -1161,6 +1211,7 @@ document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSheet(); });
     updateSearchPlaceholder();
     updateShellVisibility();
     state.pendingScrollToday="list";
+    anchorScrollAfterLive=true;
     setView("matches");
     initStickyHeaderObserver();
     syncStickyOffsets();
