@@ -123,8 +123,19 @@ function stickyHeaderHeight(){
   return h||120;
 }
 
+function listSubheaderHeight(container, el, className){
+  if(!container || !el) return 0;
+  let node = el.previousElementSibling;
+  while(node){
+    if(node.classList.contains(className)) return Math.ceil(node.getBoundingClientRect().height);
+    node = node.previousElementSibling;
+  }
+  return 0;
+}
+
 function scrollToDateSection(container, ymd, behavior="smooth"){
   if(!container || !ymd) return;
+  syncStickyOffsets();
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
       let el = container.querySelector('[data-ymd="'+ymd+'"]');
@@ -141,11 +152,13 @@ function scrollToDateSection(container, ymd, behavior="smooth"){
 
 function scrollToMatchCard(container, matchNo, behavior="smooth"){
   if(!container || matchNo == null) return;
+  syncStickyOffsets();
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
       const el = container.querySelector('.card[data-match="'+matchNo+'"]');
       if(!el) return;
-      const top = el.getBoundingClientRect().top + window.scrollY - stickyHeaderHeight() - 8;
+      const offset = stickyHeaderHeight() + listSubheaderHeight(container, el, "daysep") + 10;
+      const top = el.getBoundingClientRect().top + window.scrollY - offset;
       window.scrollTo({ top: Math.max(0, top), behavior });
     });
   });
@@ -179,8 +192,14 @@ function scrollToRecentMatchSection(container, opts={}){
   else if(t.inTournament) scrollToDateSection(container, t.ymd, behavior);
 }
 
-function scrollToTodaySection(container){
-  scrollToRecentMatchSection(container);
+function scrollToTodaySection(container, opts={}){
+  const t = todayContext();
+  if(!container || !t.inTournament) return;
+  scrollToDateSection(container, t.ymd, opts.instant ? "auto" : "smooth");
+}
+
+function scrollToTodayEvents(container, opts={}){
+  scrollToTodaySection(container, opts);
 }
 
 function goToListForDate(month, day){
@@ -941,7 +960,7 @@ function renderTorontoEvents(){
   requestAnimationFrame(syncStickyOffsets);
   if(state.pendingScrollToday==="events"){
     state.pendingScrollToday=null;
-    scrollToTodaySection(view);
+    scrollToTodayEvents(view, {instant:true});
   }
 }
 
@@ -1099,6 +1118,10 @@ function handleNavTap(v){
       scrollToRecentMatchSection(document.getElementById("view-list"));
       return;
     }
+    if(v==="events"){
+      scrollToTodayEvents(document.getElementById("eventsMain"));
+      return;
+    }
     scrollToPageTop();
     return;
   }
@@ -1111,7 +1134,6 @@ function setView(v){
     state.pendingScrollToday="events";
     updateShellVisibility();
     renderTorontoEvents();
-    window.scrollTo({top:0});
   } else if(v==="stadiums"){
     updateShellVisibility();
     renderStadiums();
