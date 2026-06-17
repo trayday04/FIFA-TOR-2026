@@ -236,6 +236,16 @@ function localTime(m){
 }
 function etTime(m){ return fmtTime(m.etHour, m.etMin); }
 
+function matchTimeSecondaryHTML(m){
+  if(!V[m.venue].off) return "";
+  return `<span class="et">${localTime(m)} local</span>`;
+}
+
+function matchKickoffText(m){
+  const local = V[m.venue].off ? ` · ${localTime(m)} local` : "";
+  return `${dateLong(m)}, 2026 · ${etTime(m)} ET${local}`;
+}
+
 function playerPhotoUrl(url){
   if(!url || url.indexOf("digitalhub.fifa.com") === -1) return url;
   return url.split("?")[0] + "?io=transform:fill,width:200,height:128,gravity:top";
@@ -250,7 +260,7 @@ function matchScoreHTML(m, large){
     return `<span class="status">FT</span><span class="score ft">${m.homeScore} \u2013 ${m.awayScore}</span>`;
   }
   const cls=large?"time scheduled":"time";
-  return `<span class="${cls}">${localTime(m)}</span><span class="vs">VS</span><span class="et">${etTime(m)} ET</span>`;
+  return `<span class="${cls}">${etTime(m)} ET</span><span class="vs">VS</span>${matchTimeSecondaryHTML(m)}`;
 }
 
 function escHtml(s){
@@ -710,7 +720,7 @@ function openMatch(no){
     ${goalsDetailHTML(m)}
     <div class="sh-hint">Tap a team for squad</div>
     <div class="sh-info">
-      <div class="sh-row">${ICON_CLOCK}<div><div class="l">Kick-off</div><div class="v">${dateLong(m)}, 2026 &middot; ${localTime(m)} local</div></div></div>
+      <div class="sh-row">${ICON_CLOCK}<div><div class="l">Kick-off</div><div class="v">${matchKickoffText(m)}</div></div></div>
       <div class="sh-row">${ICON_PIN}<div><div class="l">Venue</div><div class="v">${v.stadium}</div></div></div>
       <div class="sh-row">${ICON_FLAG}<div><div class="l">Host city</div><div class="v">${v.city}, ${v.country}</div></div></div>
       <div class="sh-row">${ICON_TROPHY}<div><div class="l">Stage</div><div class="v">${m.stage==="group"?("Group "+m.group+" \u00b7 Matchday "+m.round):m.round} &middot; Match ${m.no}${m.finished?" \u00b7 Final "+m.homeScore+"\u2013"+m.awayScore:""}</div></div></div>
@@ -729,7 +739,7 @@ function openTeam(key){
     return `<button class="tf-row" data-match="${m.no}">
       <div class="tf-date"><div class="dn">${d.getDate()}</div><div class="mo">${MONTHS[d.getMonth()]}</div></div>
       <div class="tf-opp"><span class="x">vs</span><span class="flag">${opp.flag}</span><span class="nm">${opp.name}</span></div>
-      <div class="tf-meta"><div class="tm">${localTime(m)}</div><div class="ct">${v.city}</div></div>
+      <div class="tf-meta"><div class="tm">${etTime(m)} ET</div><div class="ct">${V[m.venue].off ? localTime(m)+" local · " : ""}${v.city}</div></div>
     </button>`;
   }).join("");
   const html=`
