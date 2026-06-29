@@ -277,14 +277,21 @@ function formatScorerName(raw){
 function parseGoalEvent(ev, homeIdTeam, awayIdTeam){
   if(ev.Type !== 0) return null;
   const desc = ev.EventDescription?.[0]?.Description || "";
+  const ownGoal = /own goal/i.test(desc);
   const m = desc.match(/^(.+?)\s+\([^)]+\)\s+scores/i);
   const name = formatScorerName(m ? m[1] : desc.split("(")[0].trim());
   const minute = ev.MatchMinute || "";
   let side = null;
   if(ev.IdTeam && homeIdTeam && ev.IdTeam === homeIdTeam) side = "home";
   else if(ev.IdTeam && awayIdTeam && ev.IdTeam === awayIdTeam) side = "away";
+  if(ownGoal && side) side = side === "home" ? "away" : "home";
   if(!side || !name) return null;
-  return { side, minute, name };
+  return { side, minute, name, ownGoal };
+}
+
+function goalLineInnerHTML(g){
+  const og = g.ownGoal ? `<span class="goal-og"> (OG)</span>` : "";
+  return `<span class="gm">${escHtml(g.minute)}</span>${escHtml(g.name)}${og}`;
 }
 
 function goalsHTML(m){
@@ -293,7 +300,7 @@ function goalsHTML(m){
   const away = m.goals.filter(g => g.side === "away");
   const col = (list, alignRight) => {
     if(!list.length) return `<span class="goal-none">\u2014</span>`;
-    return list.map(g => `<span class="goal-line"><span class="gm">${escHtml(g.minute)}</span>${escHtml(g.name)}</span>`).join("");
+    return list.map(g => `<span class="goal-line">${goalLineInnerHTML(g)}</span>`).join("");
   };
   return `<div class="goals"><div class="gcol">${col(home)}</div><div class="gcol">${col(away, true)}</div></div>`;
 }
@@ -303,7 +310,7 @@ function goalsDetailHTML(m){
   const h = homeTeam(m), a = awayTeam(m);
   const block = (team, list) => {
     const rows = list.length
-      ? list.map(g => `<li><span class="gm">${escHtml(g.minute)}</span>${escHtml(g.name)}</li>`).join("")
+      ? list.map(g => `<li>${goalLineInnerHTML(g)}</li>`).join("")
       : `<li style="color:var(--faint)">No goals</li>`;
     return `<div class="sh-goals-col"><h4>${team.flag} ${escHtml(team.name)}</h4><ul>${rows}</ul></div>`;
   };

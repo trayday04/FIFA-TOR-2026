@@ -556,6 +556,7 @@ const TORONTO_EVENT_DAYS = [
         id: "stackt",
         hours: "11:00 AM – 11:00 PM",
         events: [
+          {t:"3:00 PM", title:"South Africa vs Canada", cat:"match"},
           {t:"All day", title:"Official FIFA World Cup watch parties on 13.5×24 ft screen", cat:"match"},
           {t:"All day", title:"adidas retail pop-up & on-site activations", cat:"experience"},
         ]
@@ -568,10 +569,11 @@ const TORONTO_EVENT_DAYS = [
     venues: [
       {
         id: "nps",
-        hours: "4:30 PM & 9 PM",
+        hours: "1 PM, 4:30 PM & 9 PM",
         events: [
-          {t:"4:30 PM", title:"Round of 32", cat:"match"},
-          {t:"9:00 PM", title:"Round of 32", cat:"match"},
+          {t:"1:00 PM", title:"Brazil vs Japan", cat:"match"},
+          {t:"4:30 PM", title:"Germany vs Paraguay", cat:"match"},
+          {t:"9:00 PM", title:"Netherlands vs Morocco", cat:"match"},
         ]
       },
     ]
@@ -592,9 +594,9 @@ const TORONTO_EVENT_DAYS = [
         id: "nps",
         hours: "1 PM, 5 PM & 9 PM",
         events: [
-          {t:"1:00 PM", title:"Round of 32", cat:"match"},
-          {t:"5:00 PM", title:"Round of 32", cat:"match"},
-          {t:"9:00 PM", title:"Round of 32", cat:"match"},
+          {t:"1:00 PM", title:"Côte d'Ivoire vs Norway", cat:"match"},
+          {t:"5:00 PM", title:"France vs Sweden", cat:"match"},
+          {t:"9:00 PM", title:"Mexico vs Ecuador", cat:"match"},
         ]
       },
     ]
@@ -622,9 +624,9 @@ const TORONTO_EVENT_DAYS = [
         id: "nps",
         hours: "Noon, 4 PM & 8 PM",
         events: [
-          {t:"12:00 PM", title:"Round of 32", cat:"match"},
-          {t:"4:00 PM", title:"Round of 32", cat:"match"},
-          {t:"8:00 PM", title:"Round of 32", cat:"match"},
+          {t:"12:00 PM", title:"England vs Congo DR", cat:"match"},
+          {t:"4:00 PM", title:"Belgium vs Senegal", cat:"match"},
+          {t:"8:00 PM", title:"USA vs Bosnia & Herzegovina", cat:"match"},
         ]
       },
     ]
@@ -638,8 +640,8 @@ const TORONTO_EVENT_DAYS = [
         hours: "1:30 PM – 10:30 PM",
         tag: "Toronto Match Day",
         events: [
-          {t:"3:00 PM", title:"Match Broadcast: Round of 32", cat:"match"},
-          {t:"7:00 PM", title:"Match Broadcast: Round of 32 (2K vs 2L)", cat:"match"},
+          {t:"3:00 PM", title:"Match Broadcast: Spain vs Austria", cat:"match"},
+          {t:"7:00 PM", title:"Match Broadcast: Portugal vs Croatia", cat:"match"},
           {t:"All day", title:"Deborah Cox, TOBi & Soundclash Society", cat:"entertainment"},
         ]
       },
@@ -648,8 +650,8 @@ const TORONTO_EVENT_DAYS = [
         hours: "1:00 PM – 10:00 PM",
         tag: "Toronto Match Day",
         events: [
-          {t:"3:00 PM", title:"Round of 32 watch party", cat:"match"},
-          {t:"7:00 PM", title:"Round of 32 watch party", cat:"match"},
+          {t:"3:00 PM", title:"Spain vs Austria watch party", cat:"match"},
+          {t:"7:00 PM", title:"Portugal vs Croatia watch party", cat:"match"},
         ]
       },
       {
@@ -664,9 +666,9 @@ const TORONTO_EVENT_DAYS = [
         id: "nps",
         hours: "3 PM, 7 PM & 11 PM",
         events: [
-          {t:"3:00 PM", title:"Round of 32", cat:"match"},
-          {t:"7:00 PM", title:"Round of 32", cat:"match"},
-          {t:"11:00 PM", title:"Round of 32", cat:"match"},
+          {t:"3:00 PM", title:"Spain vs Austria", cat:"match"},
+          {t:"7:00 PM", title:"Portugal vs Croatia", cat:"match"},
+          {t:"11:00 PM", title:"Switzerland vs Algeria", cat:"match"},
         ]
       },
     ]
@@ -679,9 +681,9 @@ const TORONTO_EVENT_DAYS = [
         id: "fanfest",
         hours: "12:30 PM – 12:15 AM",
         events: [
-          {t:"2:00 PM", title:"Match Broadcast: Round of 32", cat:"match"},
-          {t:"6:00 PM", title:"Match Broadcast: Round of 32", cat:"match"},
-          {t:"9:30 PM", title:"Match Broadcast: Round of 32", cat:"match"},
+          {t:"2:00 PM", title:"Match Broadcast: Australia vs Egypt", cat:"match"},
+          {t:"6:00 PM", title:"Match Broadcast: Argentina vs Cabo Verde", cat:"match"},
+          {t:"9:30 PM", title:"Match Broadcast: Colombia vs Ghana", cat:"match"},
           {t:"All day", title:"Bedouin Soundclash, Tyler Shaw & Soundclash Society", cat:"entertainment"},
         ]
       },
