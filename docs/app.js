@@ -257,7 +257,9 @@ function matchScoreHTML(m, large){
     return `<span class="status live-pulse">Live</span><span class="score live">${m.homeScore} \u2013 ${m.awayScore}</span>${min}`;
   }
   if(m.finished && m.homeScore != null){
-    return `<span class="status">FT</span><span class="score ft">${m.homeScore} \u2013 ${m.awayScore}</span>`;
+    const pens = matchHasPenalties(m);
+    const status = pens ? "Pens" : "FT";
+    return `<span class="status">${status}</span><span class="score ft">${m.homeScore} \u2013 ${m.awayScore}</span>${pens ? penSummaryHTML(m, large) : ""}`;
   }
   const cls=large?"time scheduled":"time";
   return `<span class="${cls}">${etTime(m)} ET</span><span class="vs">VS</span>${matchTimeSecondaryHTML(m)}`;
@@ -292,6 +294,84 @@ function parseGoalEvent(ev, homeIdTeam, awayIdTeam){
 function goalLineInnerHTML(g){
   const og = g.ownGoal ? `<span class="goal-og"> (OG)</span>` : "";
   return `<span class="gm">${escHtml(g.minute)}</span>${escHtml(g.name)}${og}`;
+}
+
+function matchHasPenalties(m){
+  return m.homePenScore != null && m.awayPenScore != null;
+}
+
+function penWinnerSide(m){
+  if(!matchHasPenalties(m)) return null;
+  if(m.homePenScore > m.awayPenScore) return "home";
+  if(m.awayPenScore > m.homePenScore) return "away";
+  if(m.winnerIdTeam && m.homeIdTeam && m.winnerIdTeam === m.homeIdTeam) return "home";
+  if(m.winnerIdTeam && m.awayIdTeam && m.winnerIdTeam === m.awayIdTeam) return "away";
+  return null;
+}
+
+function parsePenaltyEvent(ev, homeIdTeam, awayIdTeam){
+  if(ev.Type !== 41 && ev.Type !== 60) return null;
+  const desc = ev.EventDescription?.[0]?.Description || "";
+  const m = desc.match(/^(.+?)\s+\([^)]+\)\s+(successfully converts|misses) the penalty/i);
+  const name = formatScorerName(m ? m[1] : desc.split("(")[0].trim());
+  let side = null;
+  if(ev.IdTeam && homeIdTeam && ev.IdTeam === homeIdTeam) side = "home";
+  else if(ev.IdTeam && awayIdTeam && ev.IdTeam === awayIdTeam) side = "away";
+  if(!side || !name) return null;
+  return { side, name, scored: ev.Type === 41 };
+}
+
+function groupPenaltyKicks(kicks){
+  return {
+    home: kicks.filter(k => k.side === "home"),
+    away: kicks.filter(k => k.side === "away"),
+  };
+}
+
+function penTeamStats(kicks){
+  const made = kicks.filter(k => k.scored).length;
+  return { made, missed: kicks.length - made, total: kicks.length };
+}
+
+function penSummaryHTML(m, large){
+  if(!matchHasPenalties(m)) return "";
+  const w = penWinnerSide(m);
+  const winner = w === "home" ? homeTeam(m).name : w === "away" ? awayTeam(m).name : null;
+  const cls = large ? "pen-result pen-result-lg" : "pen-result";
+  const winnerText = winner ? `${escHtml(winner)} wins ` : "";
+  return `<span class="${cls}">${winnerText}${m.homePenScore}\u2013${m.awayPenScore} on pens</span>`;
+}
+
+function penaltiesDetailHTML(m){
+  if(!matchHasPenalties(m)) return "";
+  const h = homeTeam(m), a = awayTeam(m);
+  const homeKicks = m.penalties?.home || [];
+  const awayKicks = m.penalties?.away || [];
+  const homeStats = homeKicks.length ? penTeamStats(homeKicks) : { made: m.homePenScore, missed: null, total: null };
+  const awayStats = awayKicks.length ? penTeamStats(awayKicks) : { made: m.awayPenScore, missed: null, total: null };
+  const kickRow = k => {
+    const cls = k.scored ? "pen-hit" : "pen-miss";
+    const icon = k.scored ? "\u2713" : "\u2717";
+    return `<li class="${cls}"><span class="pen-ico" aria-hidden="true">${icon}</span>${escHtml(k.name)}</li>`;
+  };
+  const col = (team, side, kicks, stats) => {
+    const summary = stats.missed != null
+      ? `${stats.made} scored \u00b7 ${stats.missed} missed`
+      : `${stats.made} scored`;
+    const rows = kicks.length
+      ? kicks.map(kickRow).join("")
+      : `<li style="color:var(--faint)">Kick-by-kick data unavailable</li>`;
+    return `<div class="sh-pens-col${penWinnerSide(m) === side ? " pen-winner" : ""}">
+      <h4>${team.flag} ${escHtml(team.name)}</h4>
+      <div class="sh-pens-meta">${summary}</div>
+      <ul>${rows}</ul>
+    </div>`;
+  };
+  return `<div class="sh-pens">
+    <div class="sh-pens-h">Penalty shoot-out</div>
+    <div class="sh-pens-score">${m.homePenScore} \u2013 ${m.awayPenScore}</div>
+    <div class="sh-pens-grid">${col(h, "home", homeKicks, homeStats)}${col(a, "away", awayKicks, awayStats)}</div>
+  </div>`;
 }
 
 function goalsHTML(m){
@@ -363,6 +443,8 @@ function applyLiveResults(rows){
     const st = r.MatchStatus;
     const finished = st === 0;
     const live = isLiveStatus(st);
+    const homePens = r.HomeTeamPenaltyScore;
+    const awayPens = r.AwayTeamPenaltyScore;
     const patch = {
       homeScore: hs,
       awayScore: as,
@@ -372,7 +454,10 @@ function applyLiveResults(rows){
       idMatch: r.IdMatch || m.idMatch,
       homeIdTeam: r.Home?.IdTeam || m.homeIdTeam,
       awayIdTeam: r.Away?.IdTeam || m.awayIdTeam,
+      winnerIdTeam: r.Winner || m.winnerIdTeam || null,
     };
+    if(homePens != null) patch.homePenScore = homePens;
+    if(awayPens != null) patch.awayPenScore = awayPens;
     Object.keys(patch).forEach(k => {
       if(m[k] !== patch[k]){ m[k] = patch[k]; changed = true; }
     });
@@ -383,20 +468,26 @@ function applyLiveResults(rows){
 async function fetchGoalsForMatch(m){
   if(!m.idMatch) return false;
   if(!m.finished && !m.live) return false;
-  if((m.homeScore || 0) + (m.awayScore || 0) === 0 && !m.live) return false;
+  if((m.homeScore || 0) + (m.awayScore || 0) === 0 && !m.live && !matchHasPenalties(m)) return false;
   try {
     const res = await fetch("https://api.fifa.com/api/v3/timelines/"+m.idMatch+"?language=en", { cache: "no-store" });
     if(!res.ok) return false;
     const data = await res.json();
     const goals = [];
+    const penaltyKicks = [];
     (data.Event || []).forEach(ev => {
       const g = parseGoalEvent(ev, m.homeIdTeam, m.awayIdTeam);
       if(g) goals.push(g);
+      const p = parsePenaltyEvent(ev, m.homeIdTeam, m.awayIdTeam);
+      if(p) penaltyKicks.push(p);
     });
-    const key = JSON.stringify(goals);
-    if(key === m._goalsKey) return false;
-    m._goalsKey = key;
+    const penalties = penaltyKicks.length ? groupPenaltyKicks(penaltyKicks) : null;
+    const key = JSON.stringify({ goals, penalties });
+    if(key === m._timelineKey) return false;
+    m._timelineKey = key;
     m.goals = goals;
+    if(penalties) m.penalties = penalties;
+    else if(!matchHasPenalties(m)) m.penalties = null;
     return true;
   } catch (_) {
     return false;
@@ -408,7 +499,7 @@ async function syncGoals(){
   goalsSyncing = true;
   try {
     const targets = MATCHES.filter(m =>
-      m.idMatch && (m.finished || m.live) && ((m.homeScore || 0) + (m.awayScore || 0) > 0 || m.live)
+      m.idMatch && (m.finished || m.live) && ((m.homeScore || 0) + (m.awayScore || 0) > 0 || m.live || matchHasPenalties(m))
     );
     let changed = false;
     await Promise.all(targets.map(async m => {
@@ -710,12 +801,17 @@ function shTeamBlock(t, key, tappable){
 
 function openMatch(no){
   const m=MATCHES.find(x=>x.no===+no); if(!m) return;
-  if((m.finished || m.live) && !m.goals?.length && m.idMatch){
+  if((m.finished || m.live) && m.idMatch && (!m.goals?.length || (matchHasPenalties(m) && !m.penalties?.home?.length && !m.penalties?.away?.length))){
     fetchGoalsForMatch(m).then(changed => {
       if(changed && scrim.classList.contains("open")) openMatch(no);
     });
   }
   const h=homeTeam(m), a=awayTeam(m), v=V[m.venue], tag=stageTag(m);
+  const stageNote = m.finished
+    ? (matchHasPenalties(m)
+      ? ` \u00b7 ${m.homeScore}\u2013${m.awayScore} after ET \u00b7 ${m.homePenScore}\u2013${m.awayPenScore} pens`
+      : ` \u00b7 Final ${m.homeScore}\u2013${m.awayScore}`)
+    : "";
   const html=`
     ${venueHero(v.img, v.stadium+" \u00b7 "+v.city)}
     <div class="sh-stage"><span class="tag ${tag.cls}">${tag.txt}</span></div>
@@ -725,12 +821,13 @@ function openMatch(no){
       ${shTeamBlock(a, m.away, !a.tbd)}
     </div>
     ${goalsDetailHTML(m)}
+    ${penaltiesDetailHTML(m)}
     <div class="sh-hint">Tap a team for squad</div>
     <div class="sh-info">
       <div class="sh-row">${ICON_CLOCK}<div><div class="l">Kick-off</div><div class="v">${matchKickoffText(m)}</div></div></div>
       <div class="sh-row">${ICON_PIN}<div><div class="l">Venue</div><div class="v">${v.stadium}</div></div></div>
       <div class="sh-row">${ICON_FLAG}<div><div class="l">Host city</div><div class="v">${v.city}, ${v.country}</div></div></div>
-      <div class="sh-row">${ICON_TROPHY}<div><div class="l">Stage</div><div class="v">${m.stage==="group"?("Group "+m.group+" \u00b7 Matchday "+m.round):m.round} &middot; Match ${m.no}${m.finished?" \u00b7 Final "+m.homeScore+"\u2013"+m.awayScore:""}</div></div></div>
+      <div class="sh-row">${ICON_TROPHY}<div><div class="l">Stage</div><div class="v">${m.stage==="group"?("Group "+m.group+" \u00b7 Matchday "+m.round):m.round} &middot; Match ${m.no}${stageNote}</div></div></div>
     </div>`;
   openSheet(html);
   bindTeamButtons(sheet, false);
